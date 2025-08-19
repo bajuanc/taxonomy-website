@@ -16,9 +16,21 @@ Including another URLconf
 """
 from django.contrib import admin
 from django.urls import path, include
+from django.http import JsonResponse
+from django.db import connections
+
+def health(_request):
+    try:
+        connections["default"].cursor()  # opens a test cursor
+        db = "ok"
+    except Exception as e:
+        db = f"error: {e.__class__.__name__}"
+    return JsonResponse({"status": "ok", "db": db})
+
 
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('api/', include('taxonomies_manager.urls')), 
     path('chaining/', include('smart_selects.urls')),
+    path('health/', health),          
 ]
