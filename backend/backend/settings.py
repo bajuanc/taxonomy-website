@@ -19,13 +19,15 @@ import environ
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-
+# Initialise environment variables
 env = environ.Env(
     DEBUG=(bool, False),
     SECURE_SSL_REDIRECT=(bool, True),
 )
+
 # Load a local .env if present (ignored by git). On Render you’ll set env vars in the dashboard.
 environ.Env.read_env(os.path.join(BASE_DIR, ".env"))
+
 
 
 # Quick-start development settings - unsuitable for production
