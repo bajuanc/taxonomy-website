@@ -18,7 +18,7 @@ import {
 import SearchIcon from "@mui/icons-material/Search";
 import KeyboardArrowDownIcon from "@mui/icons-material/KeyboardArrowDown";
 import { Link, NavLink, useLocation, useNavigate } from "react-router-dom";
-import axios from "axios";
+import api from "../api/axios";
 import ReactCountryFlag from "react-country-flag";
 
 const cc = (code) => (code ? String(code).trim().toUpperCase() : "");
@@ -62,8 +62,8 @@ const Header = () => {
 
   useEffect(() => {
     setLoadingTx(true);
-    axios
-      .get("http://localhost:8000/api/taxonomies/")
+    api
+      .get("taxonomies/")
       .then((res) => setTaxonomies(res.data || []))
       .catch((err) => setLoadErr(err?.message || "Failed to load"))
       .finally(() => setLoadingTx(false));

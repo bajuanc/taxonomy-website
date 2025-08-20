@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo } from "react";
-import axios from "axios";
+import api from "../api/axios";
 import { Link } from "react-router-dom";
 import {
   Container,
@@ -55,8 +55,8 @@ const TaxonomyList = () => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    axios
-      .get("http://localhost:8000/api/taxonomies/")
+    api
+      .get("taxonomies/")
       .then((res) => setTaxonomies(res.data))
       .catch((err) => console.error("Error fetching taxonomies:", err))
       .finally(() => setLoading(false));

@@ -1,6 +1,6 @@
 import { useParams, Link } from "react-router-dom";
 import { useEffect, useState } from "react";
-import axios from "axios";
+import api from "../api/axios";
 import {
   Container,
   Typography,
@@ -40,12 +40,12 @@ const ActivityList = () => {
 
         const [activitiesRes, taxonomyRes, objectiveRes, sectorRes] =
           await Promise.all([
-            axios.get(
-              `http://localhost:8000/api/taxonomies/${taxonomyId}/objectives/${objectiveId}/sectors/${sectorId}/activities/`
+            api.get(
+              `\taxonomies/${taxonomyId}/objectives/${objectiveId}/sectors/${sectorId}/activities/`
             ),
-            axios.get(`http://localhost:8000/api/taxonomies/${taxonomyId}/`),
-            axios.get(`http://localhost:8000/api/objectives/${objectiveId}/`),
-            axios.get(`http://localhost:8000/api/sectors/${sectorId}/`),
+            api.get(`taxonomies/${taxonomyId}/`),
+            api.get(`objectives/${objectiveId}/`),
+            api.get(`sectors/${sectorId}/`),
           ]);
 
         if (cancelled) return;
@@ -73,9 +73,7 @@ const ActivityList = () => {
 
   const handleClick = async (activity) => {
   try {
-    const response = await axios.get(
-      `http://localhost:8000/api/activities/${activity.id}/criteria/`
-    );
+    const response = await api.get(`activities/${activity.id}/criteria/`);
     setSelectedActivity(response.data);
     setCriteriaModalOpen(true);
   } catch (error) {

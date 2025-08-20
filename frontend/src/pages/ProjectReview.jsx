@@ -4,7 +4,7 @@ import {
   TextField, MenuItem, CircularProgress, FormGroup, FormControlLabel, Checkbox,
   RadioGroup, Radio, Divider, Alert
 } from "@mui/material";
-import axios from "axios";
+import api from "../api/axios";
 import Header from "../components/Header";
 import { useNavigate } from "react-router-dom";
 
@@ -78,8 +78,8 @@ const ProjectReview = () => {
 
   // --- Load taxonomies on mount
   useEffect(() => {
-    axios
-      .get("http://localhost:8000/api/taxonomies/")
+    api
+      .get("taxonomies/")
       .then((res) => setTaxonomies(res.data || []))
       .catch((e) => console.error(e))
       .finally(() => setLoadingTx(false));
@@ -97,8 +97,8 @@ const ProjectReview = () => {
 
     if (!taxonomyId) return;
     setLoadingObjectives(true);
-    axios
-      .get(`http://localhost:8000/api/taxonomies/${taxonomyId}/environmental-objectives/`)
+    api
+      .get(`taxonomies/${taxonomyId}/environmental-objectives/`)
       .then((res) => setObjectives(res.data || []))
       .catch((e) => console.error(e))
       .finally(() => setLoadingObjectives(false));
@@ -114,8 +114,8 @@ const ProjectReview = () => {
 
     if (!taxonomyId || !objectiveId) return;
     setLoadingSectors(true);
-    axios
-      .get(`http://localhost:8000/api/taxonomies/${taxonomyId}/objectives/${objectiveId}/sectors/`)
+    api
+      .get(`taxonomies/${taxonomyId}/objectives/${objectiveId}/sectors/`)
       .then((res) => setSectors(res.data || []))
       .catch((e) => console.error(e))
       .finally(() => setLoadingSectors(false));
@@ -131,9 +131,9 @@ const ProjectReview = () => {
     if (sectorId === "__none__") return; // "I don't see a sector"
 
     setLoadingActivities(true);
-    axios
+    api
       .get(
-        `http://localhost:8000/api/taxonomies/${taxonomyId}/objectives/${objectiveId}/sectors/${sectorId}/activities/`
+        `taxonomies/${taxonomyId}/objectives/${objectiveId}/sectors/${sectorId}/activities/`
       )
       .then((res) => setActivities(res.data || []))
       .catch((e) => console.error(e))
@@ -153,8 +153,8 @@ const ProjectReview = () => {
     if (!activityId || activityId === "__none__") return;
 
     setLoadingCriteria(true);
-    axios
-      .get(`http://localhost:8000/api/activities/${activityId}/criteria/`)
+    api
+      .get(`activities/${activityId}/criteria/`)
       .then((res) => {
         const data = res.data;
         setCriteria(data);

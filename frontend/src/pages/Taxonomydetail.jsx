@@ -1,6 +1,6 @@
 import { useParams, useNavigate, Link as RouterLink } from "react-router-dom";
 import { useEffect, useState } from "react";
-import axios from "axios";
+import api from "../api/axios";
 import {
   Container,
   Typography,
@@ -25,8 +25,8 @@ const TaxonomyDetail = () => {
   useEffect(() => {
     const fetchTaxonomy = async () => {
       try {
-        const response = await axios.get(
-          `http://localhost:8000/api/taxonomies/${id}/`
+        const response = await api.get(
+          `taxonomies/${id}/`
         );
         setTaxonomy(response.data);
       } catch (error) {
@@ -36,8 +36,8 @@ const TaxonomyDetail = () => {
 
     const fetchObjectives = async () => {
       try {
-        const response = await axios.get(
-          `http://localhost:8000/api/taxonomies/${id}/environmental-objectives/`
+        const response = await api.get(
+          `taxonomies/${id}/environmental-objectives/`
         );
         setObjectives(response.data);
       } catch (error) {
@@ -56,8 +56,8 @@ const TaxonomyDetail = () => {
     if (selectedObjective) {
       const fetchSectors = async () => {
         try {
-          const response = await axios.get(
-            `http://localhost:8000/api/taxonomies/${id}/objectives/${selectedObjective.id}/sectors/`
+          const response = await api.get(
+            `taxonomies/${id}/objectives/${selectedObjective.id}/sectors/`
           );
           setSectors(response.data);
         } catch (error) {

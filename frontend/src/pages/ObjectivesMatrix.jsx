@@ -6,7 +6,7 @@ import {
 import CheckCircleOutlineIcon from "@mui/icons-material/CheckCircleOutline";
 import RemoveIcon from "@mui/icons-material/Remove";
 import Header from "../components/Header";
-import axios from "axios";
+import api from "../api/axios";
 // (optional) flags
 import ReactCountryFlag from "react-country-flag";
 
@@ -22,15 +22,15 @@ const ObjectivesMatrix = () => {
     const load = async () => {
       try {
         setLoading(true);
-        const txRes = await axios.get("http://localhost:8000/api/taxonomies/");
+        const txRes = await api.get("taxonomies/");
         const txs = txRes.data || [];
         setTaxonomies(txs);
 
         // fetch objectives for each taxonomy in parallel
         const pairs = await Promise.all(
           txs.map(async (t) => {
-            const res = await axios.get(
-              `http://localhost:8000/api/taxonomies/${t.id}/environmental-objectives/`
+            const res = await api.get(
+              `taxonomies/${t.id}/environmental-objectives/`
             );
             return [t.id, res.data || []];
           })
