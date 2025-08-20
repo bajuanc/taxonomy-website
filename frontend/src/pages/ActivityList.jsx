@@ -41,7 +41,7 @@ const ActivityList = () => {
         const [activitiesRes, taxonomyRes, objectiveRes, sectorRes] =
           await Promise.all([
             api.get(
-              `\taxonomies/${taxonomyId}/objectives/${objectiveId}/sectors/${sectorId}/activities/`
+              `taxonomies/${taxonomyId}/objectives/${objectiveId}/sectors/${sectorId}/activities/`
             ),
             api.get(`taxonomies/${taxonomyId}/`),
             api.get(`objectives/${objectiveId}/`),

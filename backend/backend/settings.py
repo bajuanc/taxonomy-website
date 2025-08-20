@@ -75,25 +75,32 @@ MIDDLEWARE = [
 
 
 # CORS: allow local dev + Vercel previews
-CORS_ALLOWED_ORIGINS = [
-    "http://localhost:5173",
-    "http://127.0.0.1:5173",
-]
+CORS_ALLOWED_ORIGINS = env.list(
+    "CORS_ALLOWED_ORIGINS",
+    default=[
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+        "http://localhost:4173",
+        "http://127.0.0.1:4173",
+    ],
+)
+
 CORS_ALLOWED_ORIGIN_REGEXES = [
     r"^https:\/\/.*\.vercel\.app$",
     r"^https:\/\/.*\.onrender\.com$",
 ]
 
-# CSRF: must be full origins (with scheme)
+# CSRF (no wildcards here; must be exact origins w/ scheme)
 CSRF_TRUSTED_ORIGINS = env.list(
     "CSRF_TRUSTED_ORIGINS",
     default=[
         "http://localhost:5173",
         "http://127.0.0.1:5173",
-        "https://*.vercel.app",
-        "https://*.onrender.com",
+        "http://localhost:4173",
+        "http://127.0.0.1:4173",
     ],
 )
+
 
 # Honor X-Forwarded-Proto from Render’s proxy
 SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
