@@ -15,7 +15,6 @@ import {
   Box,
 } from "@mui/material";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
-import Header from "../components/Header";
 import ReactCountryFlag from "react-country-flag";
 
 const CONTINENTS = [
@@ -44,7 +43,8 @@ const normalizeRegion = (raw) => {
     n.includes("latin america") ||
     n.includes("caribbean") ||
     n.includes("latam")
-  ) return "Latin America and the Caribbean";
+  )
+    return "Latin America and the Caribbean";
   if (n === "oceania" || n.includes("australia")) return "Oceania";
   if (n === "middle east" || n.includes("middle-east") || n.includes("gcc")) return "Middle East";
   return "Other";
@@ -57,25 +57,24 @@ const TaxonomyList = () => {
   useEffect(() => {
     api
       .get("taxonomies/")
-      .then((res) => setTaxonomies(res.data))
+      .then((res) => setTaxonomies(res.data || []))
       .catch((err) => console.error("Error fetching taxonomies:", err))
       .finally(() => setLoading(false));
   }, []);
 
-  // group by continent (use taxonomy.region if present; else infer)
+  // Group by normalized region
   const grouped = useMemo(() => {
     const buckets = {};
     for (const t of taxonomies) {
-      const continent = t.region || inferContinent(t);
-      if (!buckets[continent]) buckets[continent] = [];
-      buckets[continent].push(t);
+      const region = normalizeRegion(t.region);
+      if (!buckets[region]) buckets[region] = [];
+      buckets[region].push(t);
     }
     return buckets;
   }, [taxonomies]);
 
   return (
     <>
-      <Header />
       {loading ? (
         <Container sx={{ textAlign: "center", mt: 4 }}>
           <CircularProgress />
@@ -123,12 +122,7 @@ const TaxonomyList = () => {
                             {taxonomy.description || "No description provided."}
                           </Typography>
                           <Box sx={{ mt: 2 }}>
-                            <Button
-                              variant="contained"
-                              fullWidth
-                              component={Link}
-                              to={`/taxonomies/${taxonomy.id}`}
-                            >
+                            <Button variant="contained" fullWidth component={Link} to={`/taxonomies/${taxonomy.id}`}>
                               Explore
                             </Button>
                           </Box>
