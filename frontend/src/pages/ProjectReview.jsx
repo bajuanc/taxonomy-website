@@ -5,7 +5,6 @@ import {
   RadioGroup, Radio, Divider, Alert
 } from "@mui/material";
 import api from "../api/axios";
-import Header from "../components/Header";
 import { useNavigate } from "react-router-dom";
 
 const steps = [
@@ -63,18 +62,14 @@ const ProjectReview = () => {
 
   // Assessment state
   const [scType, setScType] = useState("threshold");
-  // threshold
-  const [meetsThreshold, setMeetsThreshold] = useState(false);
-  // traffic-light
+  const [meetsThreshold, setMeetsThreshold] = useState(false); // threshold
   const [trafficChoice, setTrafficChoice] = useState(""); // "green" | "amber" | "red"
   const [meetsTrafficChoice, setMeetsTrafficChoice] = useState(false);
-  // dnsh
-  const [dnshChecks, setDnshChecks] = useState({});
-  // minimum safeguards (not in DB; user confirms)
-  const [meetsMS, setMeetsMS] = useState(false);
+  const [dnshChecks, setDnshChecks] = useState({}); // dnsh
+  const [meetsMS, setMeetsMS] = useState(false); // minimum safeguards
 
   // Computed result
-  const [result, setResult] = useState(null); // {status: 'Not eligible' | 'Eligible but not aligned' | 'Aligned', reason: string}
+  const [result, setResult] = useState(null); // {status, reason}
 
   // --- Load taxonomies on mount
   useEffect(() => {
@@ -87,12 +82,9 @@ const ProjectReview = () => {
 
   // --- When taxonomy changes, load objectives
   useEffect(() => {
-    setObjectives([]);
-    setObjectiveId("");
-    setSectors([]);
-    setSectorId("");
-    setActivities([]);
-    setActivityId("");
+    setObjectives([]); setObjectiveId("");
+    setSectors([]); setSectorId("");
+    setActivities([]); setActivityId("");
     setCriteria(null);
 
     if (!taxonomyId) return;
@@ -106,10 +98,8 @@ const ProjectReview = () => {
 
   // --- When objective changes, load sectors
   useEffect(() => {
-    setSectors([]);
-    setSectorId("");
-    setActivities([]);
-    setActivityId("");
+    setSectors([]); setSectorId("");
+    setActivities([]); setActivityId("");
     setCriteria(null);
 
     if (!taxonomyId || !objectiveId) return;
@@ -123,18 +113,15 @@ const ProjectReview = () => {
 
   // --- When sector changes, load activities
   useEffect(() => {
-    setActivities([]);
-    setActivityId("");
+    setActivities([]); setActivityId("");
     setCriteria(null);
 
     if (!taxonomyId || !objectiveId || !sectorId) return;
-    if (sectorId === "__none__") return; // "I don't see a sector"
+    if (sectorId === "__none__") return; // user didn't find a sector
 
     setLoadingActivities(true);
     api
-      .get(
-        `taxonomies/${taxonomyId}/objectives/${objectiveId}/sectors/${sectorId}/activities/`
-      )
+      .get(`taxonomies/${taxonomyId}/objectives/${objectiveId}/sectors/${sectorId}/activities/`)
       .then((res) => setActivities(res.data || []))
       .catch((e) => console.error(e))
       .finally(() => setLoadingActivities(false));
@@ -162,7 +149,7 @@ const ProjectReview = () => {
         const norm = normalizeSCType(data.sc_criteria_type);
         setScType(norm || "threshold");
 
-        // Initialize DNSH checkboxes for only the fields that have content
+        // Initialize DNSH checkboxes only for fields that have content
         const init = {};
         DNSH_FIELDS.forEach(({ key }) => {
           if ((data[key] || "").trim().length > 0) init[key] = false;
@@ -173,37 +160,25 @@ const ProjectReview = () => {
       .finally(() => setLoadingCriteria(false));
   }, [activityId]);
 
-  const presentDnshKeys = useMemo(
-    () => Object.keys(dnshChecks),
-    [dnshChecks]
-  );
+  const presentDnshKeys = useMemo(() => Object.keys(dnshChecks), [dnshChecks]);
 
   // --- Navigation guards (simple)
   const canNext = useMemo(() => {
     switch (activeStep) {
-      case 0:
-        return true; // project info optional to proceed
-      case 1:
-        return !!taxonomyId;
-      case 2:
-        return !!objectiveId;
-      case 3:
-        return !!sectorId; // can be "__none__"
-      case 4:
-        return !!activityId; // can be "__none__"
+      case 0: return true; // project info optional
+      case 1: return !!taxonomyId;
+      case 2: return !!objectiveId;
+      case 3: return !!sectorId; // can be "__none__"
+      case 4: return !!activityId; // can be "__none__"
       case 5:
         if (sectorId === "__none__" || activityId === "__none__") return true; // skip assessment
         if (loadingCriteria || !criteria) return false;
-
         if (scType === "traffic_light") {
           if (!trafficChoice) return false;
-          if (trafficChoice === "red") return true; // can proceed to results
-          // green/amber → need a choice checkbox + DNSH & MS answers (checked or unchecked is fine; user can proceed)
-          return true;
-        } else {
-          // threshold → user can proceed (checked or not); result will compute accordingly
-          return true;
+          if (trafficChoice === "red") return true;
+          return true; // allow proceed; result will consider meetsTrafficChoice/DNSH/MS
         }
+        return true; // threshold
       default:
         return true;
     }
@@ -211,9 +186,7 @@ const ProjectReview = () => {
 
   const handleNext = () => {
     if (activeStep === steps.length - 2) {
-      // compute result before final step
-      const res = computeResult();
-      setResult(res);
+      setResult(computeResult());
     }
     setActiveStep((s) => Math.min(s + 1, steps.length - 1));
   };
@@ -221,34 +194,24 @@ const ProjectReview = () => {
 
   // --- Result engine
   const computeResult = () => {
-    // 1) Not eligible path
     if (sectorId === "__none__" || activityId === "__none__") {
       return { status: "Not eligible", reason: "No matching sector or activity was selected." };
     }
-
-    // 2) Evaluate alignment
-    // DNSH all met = all present DNSH fields must be checked true (if none present, treat as true)
-    const dnshAllMet = presentDnshKeys.length === 0
-      ? true
-      : presentDnshKeys.every((k) => dnshChecks[k]);
-
+    const dnshAllMet = presentDnshKeys.length === 0 ? true : presentDnshKeys.every((k) => dnshChecks[k]);
     const msMet = meetsMS === true;
 
     if (scType === "traffic_light") {
-      // user must pick one
       if (trafficChoice === "red") {
         return { status: "Eligible but not aligned", reason: "Red criteria selected." };
       }
       const scMet = meetsTrafficChoice === true;
-
       if (scMet && dnshAllMet && msMet) {
         return { status: "Aligned", reason: "Selected traffic-light criteria, DNSH, and minimum safeguards met." };
       }
       return { status: "Eligible but not aligned", reason: "One or more criteria not met (SC / DNSH / MS)." };
     }
 
-    // threshold
-    const scMet = meetsThreshold === true;
+    const scMet = meetsThreshold === true; // threshold
     if (scMet && dnshAllMet && msMet) {
       return { status: "Aligned", reason: "Threshold criteria, DNSH, and minimum safeguards met." };
     }
@@ -261,18 +224,8 @@ const ProjectReview = () => {
       <CardContent>
         <Typography variant="h6" gutterBottom>Project Info</Typography>
         <Box sx={{ display: "grid", gridTemplateColumns: { md: "1fr 1fr" }, gap: 2 }}>
-          <TextField
-            label="Project Name"
-            value={projectName}
-            onChange={(e) => setProjectName(e.target.value)}
-            fullWidth
-          />
-          <TextField
-            label="Country/Region"
-            value={projectRegion}
-            onChange={(e) => setProjectRegion(e.target.value)}
-            fullWidth
-          />
+          <TextField label="Project Name" value={projectName} onChange={(e) => setProjectName(e.target.value)} fullWidth />
+          <TextField label="Country/Region" value={projectRegion} onChange={(e) => setProjectRegion(e.target.value)} fullWidth />
         </Box>
         <TextField
           label="Short Description"
@@ -294,16 +247,8 @@ const ProjectReview = () => {
         {loadingTx ? (
           <Box sx={{ py: 3, textAlign: "center" }}><CircularProgress /></Box>
         ) : (
-          <TextField
-            select
-            label="Taxonomy"
-            value={taxonomyId}
-            onChange={(e) => setTaxonomyId(e.target.value)}
-            fullWidth
-          >
-            {taxonomies.map((t) => (
-              <MenuItem key={t.id} value={t.id}>{t.name}</MenuItem>
-            ))}
+          <TextField select label="Taxonomy" value={taxonomyId} onChange={(e) => setTaxonomyId(e.target.value)} fullWidth>
+            {taxonomies.map((t) => (<MenuItem key={t.id} value={t.id}>{t.name}</MenuItem>))}
           </TextField>
         )}
       </CardContent>
@@ -325,9 +270,7 @@ const ProjectReview = () => {
             fullWidth
             disabled={!taxonomyId}
           >
-            {objectives.map((o) => (
-              <MenuItem key={o.id} value={o.id}>{o.name}</MenuItem>
-            ))}
+            {objectives.map((o) => (<MenuItem key={o.id} value={o.id}>{o.name}</MenuItem>))}
           </TextField>
         )}
       </CardContent>
@@ -350,9 +293,7 @@ const ProjectReview = () => {
             disabled={!objectiveId}
           >
             <MenuItem value="__none__">I don’t see a sector related to my project</MenuItem>
-            {sectors.map((s) => (
-              <MenuItem key={s.id} value={s.id}>{s.name}</MenuItem>
-            ))}
+            {sectors.map((s) => (<MenuItem key={s.id} value={s.id}>{s.name}</MenuItem>))}
           </TextField>
         )}
       </CardContent>
@@ -379,9 +320,7 @@ const ProjectReview = () => {
             disabled={!sectorId || sectorId === "__none__"}
           >
             <MenuItem value="__none__">I don’t see an activity related to my project</MenuItem>
-            {activities.map((a) => (
-              <MenuItem key={a.id} value={a.id}>{a.name}</MenuItem>
-            ))}
+            {activities.map((a) => (<MenuItem key={a.id} value={a.id}>{a.name}</MenuItem>))}
           </TextField>
         )}
       </CardContent>
@@ -391,7 +330,7 @@ const ProjectReview = () => {
   const renderAssessment = () => (
     <Card>
       <CardContent>
-        <Typography variant="h6" gutterBottom>Self‑Assessment</Typography>
+        <Typography variant="h6" gutterBottom>Self-Assessment</Typography>
 
         {(sectorId === "__none__" || activityId === "__none__") && (
           <Alert severity="info" sx={{ mb: 2 }}>
@@ -411,12 +350,7 @@ const ProjectReview = () => {
 
                   {normalizeSCType(criteria.sc_criteria_type) === "traffic_light" ? (
                     <>
-                      <RadioGroup
-                        row
-                        value={trafficChoice}
-                        onChange={(e) => setTrafficChoice(e.target.value)}
-                        sx={{ mb: 1 }}
-                      >
+                      <RadioGroup row value={trafficChoice} onChange={(e) => setTrafficChoice(e.target.value)} sx={{ mb: 1 }}>
                         <FormControlLabel value="green" control={<Radio />} label="Green" />
                         <FormControlLabel value="amber" control={<Radio />} label="Amber" />
                         <FormControlLabel value="red" control={<Radio />} label="Red" />
@@ -426,18 +360,15 @@ const ProjectReview = () => {
                         <>
                           <Box sx={{ p: 2, bgcolor: "action.hover", borderRadius: 1, mb: 1 }}>
                             <Typography variant="body2" sx={{ whiteSpace: "pre-wrap" }}>
-                              {trafficChoice === "green" ? (criteria.sc_criteria_green || "No details provided.")
-                                : trafficChoice === "amber" ? (criteria.sc_criteria_amber || "No details provided.")
+                              {trafficChoice === "green"
+                                ? (criteria.sc_criteria_green || "No details provided.")
+                                : trafficChoice === "amber"
+                                ? (criteria.sc_criteria_amber || "No details provided.")
                                 : ""}
                             </Typography>
                           </Box>
                           <FormControlLabel
-                            control={
-                              <Checkbox
-                                checked={meetsTrafficChoice}
-                                onChange={(e) => setMeetsTrafficChoice(e.target.checked)}
-                              />
-                            }
+                            control={<Checkbox checked={meetsTrafficChoice} onChange={(e) => setMeetsTrafficChoice(e.target.checked)} />}
                             label="My project meets the selected traffic-light criteria"
                           />
                         </>
@@ -457,12 +388,7 @@ const ProjectReview = () => {
                         </Typography>
                       </Box>
                       <FormControlLabel
-                        control={
-                          <Checkbox
-                            checked={meetsThreshold}
-                            onChange={(e) => setMeetsThreshold(e.target.checked)}
-                          />
-                        }
+                        control={<Checkbox checked={meetsThreshold} onChange={(e) => setMeetsThreshold(e.target.checked)} />}
                         label="My project meets the threshold criteria"
                       />
                     </>
@@ -488,9 +414,7 @@ const ProjectReview = () => {
                             control={
                               <Checkbox
                                 checked={!!dnshChecks[key]}
-                                onChange={(e) =>
-                                  setDnshChecks((prev) => ({ ...prev, [key]: e.target.checked }))
-                                }
+                                onChange={(e) => setDnshChecks((prev) => ({ ...prev, [key]: e.target.checked }))}
                               />
                             }
                             label={`My project meets the ${label} DNSH criteria`}
@@ -575,50 +499,43 @@ const ProjectReview = () => {
   );
 
   return (
-    <>
-      <Header />
-      <Container maxWidth="lg" sx={{ mt: 4, mb: 8 }}>
-        <Typography variant="h4" gutterBottom>Project Review</Typography>
+    <Container maxWidth="lg" sx={{ mt: 4, mb: 8 }}>
+      <Typography variant="h4" gutterBottom>Project Review</Typography>
 
-        <Stepper activeStep={activeStep} alternativeLabel sx={{ mb: 3 }}>
-          {steps.map((label) => (
-            <Step key={label}>
-              <StepLabel>{label}</StepLabel>
-            </Step>
-          ))}
-        </Stepper>
+      <Stepper activeStep={activeStep} alternativeLabel sx={{ mb: 3 }}>
+        {steps.map((label) => (
+          <Step key={label}>
+            <StepLabel>{label}</StepLabel>
+          </Step>
+        ))}
+      </Stepper>
 
-        <Box sx={{ display: "grid", gap: 2 }}>
-          {activeStep === 0 && renderProjectInfo()}
-          {activeStep === 1 && renderTaxonomy()}
-          {activeStep === 2 && renderObjective()}
-          {activeStep === 3 && renderSector()}
-          {activeStep === 4 && renderActivity()}
-          {activeStep === 5 && renderAssessment()}
-          {activeStep === 6 && renderResults()}
-        </Box>
+      <Box sx={{ display: "grid", gap: 2 }}>
+        {activeStep === 0 && renderProjectInfo()}
+        {activeStep === 1 && renderTaxonomy()}
+        {activeStep === 2 && renderObjective()}
+        {activeStep === 3 && renderSector()}
+        {activeStep === 4 && renderActivity()}
+        {activeStep === 5 && renderAssessment()}
+        {activeStep === 6 && renderResults()}
+      </Box>
 
-        <Box sx={{ display: "flex", justifyContent: "space-between", mt: 3 }}>
-          <Button variant="outlined" disabled={activeStep === 0} onClick={handleBack}>
-            Back
+      <Box sx={{ display: "flex", justifyContent: "space-between", mt: 3 }}>
+        <Button variant="outlined" disabled={activeStep === 0} onClick={handleBack}>
+          Back
+        </Button>
+
+        {activeStep < steps.length - 1 ? (
+          <Button variant="contained" onClick={handleNext} disabled={!canNext}>
+            {activeStep === steps.length - 2 ? "Finish" : "Next"}
           </Button>
-
-          {activeStep < steps.length - 1 ? (
-            <Button
-              variant="contained"
-              onClick={handleNext}
-              disabled={!canNext}
-            >
-              {activeStep === steps.length - 2 ? "Finish" : "Next"}
-            </Button>
-          ) : (
-            <Button variant="contained" onClick={() => navigate("/")}>
-              Done
-            </Button>
-          )}
-        </Box>
-      </Container>
-    </>
+        ) : (
+          <Button variant="contained" onClick={() => navigate("/")}>
+            Done
+          </Button>
+        )}
+      </Box>
+    </Container>
   );
 };
 
