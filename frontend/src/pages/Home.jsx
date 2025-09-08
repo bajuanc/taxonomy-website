@@ -11,6 +11,7 @@ import {
 } from "@mui/material";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import { Link } from "react-router-dom";
+import TaxonomyWorldMap from "../components/TaxonomyWorldMap.jsx";
 
 const Home = () => {
   return (
@@ -72,6 +73,7 @@ const Home = () => {
         </Container>
       </Box>
 
+
       {/* EXISTING CONTENT BELOW */}
       <Container maxWidth="lg" sx={{ mt: 6 }}>
         {/* Title */}
@@ -132,6 +134,11 @@ const Home = () => {
           </AccordionDetails>
         </Accordion>
       </Container>
+
+      <Container maxWidth="lg" sx={{ mt: 6 }}>
+        <TaxonomyWorldMap />
+      </Container>
+
     </>
   );
 };

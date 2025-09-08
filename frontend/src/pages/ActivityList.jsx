@@ -16,7 +16,7 @@ import {
 } from "@mui/material";
 import SearchIcon from "@mui/icons-material/Search";
 import ArrowForwardIosIcon from "@mui/icons-material/ArrowForwardIos";
-// ⛔️ Removed: import Header from "../components/Header";
+import ActivityCriteriaModal from "../components/ActivityCriteriaModal";
 
 const ActivityList = () => {
   const { taxonomyId, objectiveId, sectorId } = useParams();
