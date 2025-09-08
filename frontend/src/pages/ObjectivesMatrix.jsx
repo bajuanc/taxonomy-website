@@ -2,12 +2,13 @@
 import React, { useEffect, useMemo, useState } from "react";
 import {
   Container, Typography, Box, Paper, Table, TableBody, TableCell,
-  TableContainer, TableHead, TableRow, CircularProgress, Chip, Tooltip
+  TableContainer, TableHead, TableRow, CircularProgress, Tooltip, IconButton
 } from "@mui/material";
 import CheckCircleOutlineIcon from "@mui/icons-material/CheckCircleOutline";
 import RemoveIcon from "@mui/icons-material/Remove";
+import { Link as RouterLink } from "react-router-dom";
 import api from "../api/axios";
-import ReactCountryFlag from "react-country-flag"; // optional flags
+import ReactCountryFlag from "react-country-flag";
 
 const cc = (code) => (code ? String(code).trim().toUpperCase() : "");
 
@@ -44,7 +45,6 @@ const ObjectivesMatrix = () => {
     load();
   }, []);
 
-  // Build the union of all objective names (sorted)
   const allObjectiveNames = useMemo(() => {
     const set = new Set();
     Object.values(objectivesByTaxonomy).forEach((list) =>
@@ -56,13 +56,14 @@ const ObjectivesMatrix = () => {
   const hasObjective = (taxonomyId, objectiveName) =>
     (objectivesByTaxonomy[taxonomyId] || []).some((o) => o.name === objectiveName);
 
+  const getObjectiveByName = (taxonomyId, objectiveName) =>
+    (objectivesByTaxonomy[taxonomyId] || []).find((o) => o.name === objectiveName);
+
   return (
     <Container maxWidth="lg" sx={{ mt: 4, mb: 8 }}>
-      <Box sx={{ display: "flex", alignItems: "baseline", gap: 2, mb: 2 }}>
-        <Typography variant="h4">Environmental Objectives</Typography>
-        <Chip label={`Taxonomies: ${taxonomies.length}`} size="small" />
-        <Chip label={`Objectives: ${allObjectiveNames.length}`} size="small" />
-      </Box>
+      <Typography variant="h4" sx={{ mb: 2 }}>
+        Environmental Objectives
+      </Typography>
 
       {loading ? (
         <Box sx={{ textAlign: "center", py: 8 }}>
@@ -71,26 +72,57 @@ const ObjectivesMatrix = () => {
       ) : error ? (
         <Typography color="error">{error}</Typography>
       ) : (
-        <TableContainer component={Paper} sx={{ overflowX: "auto" }}>
+        <TableContainer
+          component={Paper}
+          sx={{
+            overflowX: "auto",
+            borderRadius: 2,
+          }}
+        >
           <Table stickyHeader size="small" aria-label="Objectives matrix">
             <TableHead>
               <TableRow>
-                <TableCell sx={{ fontWeight: 700, minWidth: 220 }}>Taxonomy</TableCell>
+                <TableCell
+                  sx={{
+                    fontWeight: 700,
+                    minWidth: 220,
+                    position: "sticky",
+                    left: 0,
+                    zIndex: 2,
+                    bgcolor: "background.paper",
+                  }}
+                >
+                  Taxonomy
+                </TableCell>
                 {allObjectiveNames.map((obj) => (
                   <TableCell
                     key={obj}
                     align="center"
-                    sx={{ fontWeight: 700, whiteSpace: "nowrap" }}
+                    sx={{
+                      fontWeight: 700,
+                      whiteSpace: "nowrap",
+                      minWidth: 140,
+                    }}
                   >
                     {obj}
                   </TableCell>
                 ))}
               </TableRow>
             </TableHead>
+
             <TableBody>
               {taxonomies.map((t) => (
                 <TableRow hover key={t.id}>
-                  <TableCell sx={{ whiteSpace: "nowrap" }}>
+                  {/* Sticky first column for taxonomy name */}
+                  <TableCell
+                    sx={{
+                      whiteSpace: "nowrap",
+                      position: "sticky",
+                      left: 0,
+                      zIndex: 1,
+                      bgcolor: "background.paper",
+                    }}
+                  >
                     <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
                       {cc(t.country_code) && (
                         <ReactCountryFlag
@@ -107,15 +139,28 @@ const ObjectivesMatrix = () => {
 
                   {allObjectiveNames.map((obj) => {
                     const present = hasObjective(t.id, obj);
+                    if (!present) {
+                      return (
+                        <TableCell key={`${t.id}-${obj}`} align="center">
+                          <RemoveIcon fontSize="small" sx={{ color: "text.disabled" }} />
+                        </TableCell>
+                      );
+                    }
+
+                    const target = getObjectiveByName(t.id, obj); // { id, name }
                     return (
                       <TableCell key={`${t.id}-${obj}`} align="center">
-                        {present ? (
-                          <Tooltip title="Objective available in this taxonomy">
+                        <Tooltip title={`Go to ${t.name} → ${obj} sectors`}>
+                          <IconButton
+                            component={RouterLink}
+                            to={`/taxonomies/${t.id}`}
+                            state={{ preselectObjectiveId: target?.id, fromObjectivesMatrix: true }}
+                            aria-label={`Open sectors for ${obj} in ${t.name}`}
+                            size="small"
+                          >
                             <CheckCircleOutlineIcon fontSize="small" color="success" />
-                          </Tooltip>
-                        ) : (
-                          <RemoveIcon fontSize="small" sx={{ color: "text.disabled" }} />
-                        )}
+                          </IconButton>
+                        </Tooltip>
                       </TableCell>
                     );
                   })}
