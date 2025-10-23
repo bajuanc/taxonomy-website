@@ -1,12 +1,27 @@
 from django.contrib import admin
-from .models import Taxonomy, EnvironmentalObjective, Sector, Activity
+from .models import (
+    Taxonomy, EnvironmentalObjective, Sector, Subsector,
+    Activity, Practice, RwandaAdaptation,
+    AdaptationWhitelist, AdaptationGeneralCriterion,
+)
+
+# Inlines para navegar jerárquicamente desde Taxonomy
+class EnvironmentalObjectiveInline(admin.TabularInline):
+    model = EnvironmentalObjective
+    extra = 0
+
+class SectorInline(admin.TabularInline):
+    model = Sector
+    extra = 0
 
 # --- Taxonomy ---
 @admin.register(Taxonomy)
 class TaxonomyAdmin(admin.ModelAdmin):
-    list_display = ("name", "region", "description_short")
-    list_filter = ("region",)
+    list_display = ("name", "region", "language", "description_short")
+    list_filter = ("region", "language")
     search_fields = ("name", "description")
+    readonly_fields = ()
+    inlines = [EnvironmentalObjectiveInline, SectorInline]
     ordering = ("name",)
 
     def description_short(self, obj):
@@ -23,20 +38,30 @@ class EnvironmentalObjectiveAdmin(admin.ModelAdmin):
     ordering = ("taxonomy__name", "name")
     list_select_related = ("taxonomy",)
 
+class SubsectorInline(admin.TabularInline):
+    model = Subsector
+    extra = 0
 
 # --- Sector ---
 @admin.register(Sector)
 class SectorAdmin(admin.ModelAdmin):
-    list_display = ("name", "environmental_objective", "taxonomy")
+    list_display = ("name", "taxonomy","environmental_objective")
     list_filter = ("taxonomy__region", "taxonomy", "environmental_objective")
     search_fields = ("name", "environmental_objective__name", "taxonomy__name")
     ordering = ("taxonomy__name", "environmental_objective__name", "name")
     list_select_related = ("taxonomy", "environmental_objective")
+    inlines = [SubsectorInline]
 
     def taxonomy(self, obj):
         return obj.taxonomy
     taxonomy.admin_order_field = "environmental_objective__taxonomy__name"
 
+# --- Subsector ---
+@admin.register(Subsector)
+class SubsectorAdmin(admin.ModelAdmin):
+    list_display = ("name", "sector")
+    search_fields = ("name", "sector__name")
+    list_filter = ("sector__taxonomy", "sector__environmental_objective")
 
 # --- Activity ---
 @admin.register(Activity)
@@ -47,6 +72,7 @@ class ActivityAdmin(admin.ModelAdmin):
         "taxonomy",
         "environmental_objective",
         "sector",
+        "subsector",
         "sc_criteria_type",
         "contribution_type",
     )
@@ -55,43 +81,47 @@ class ActivityAdmin(admin.ModelAdmin):
         "taxonomy",
         "environmental_objective",
         "sector",
+        "subsector",
         "sc_criteria_type",
         "contribution_type",
     )
     search_fields = (
         "name",
         "taxonomy_code",
-        "economic_code",
         "taxonomy__name",
+        "economic_code",
         "environmental_objective__name",
         "sector__name",
     )
     ordering = ("taxonomy__name", "environmental_objective__name", "sector__name", "taxonomy_code")
-    list_select_related = ("taxonomy", "environmental_objective", "sector")
+    list_select_related = ("taxonomy", "environmental_objective", "sector", "subsector")
 
     fieldsets = (
         ("Identity", {
             "fields": (
-                "taxonomy", "environmental_objective", "sector",
-                "taxonomy_code", "economic_code", "name", "description",
+                "taxonomy",
+                "environmental_objective",
+                "sector",
+                "subsector",
+                "taxonomy_code",
+                "economic_code_system",
+                "economic_code",
+                "name",
+                "description",
             )
         }),
-        ("Classification", {
-            "fields": ("contribution_type", "sc_criteria_type")
-        }),
+        ("Classification", {"fields": ("contribution_type", "sc_criteria_type")}),
         ("Substantial contribution (Threshold mode)", {
-            "fields": ("substantial_contribution_criteria",),
+            "fields": ("substantial_contribution_criteria", "non_eligibility_criteria"),
             "description": "Used when sc_criteria_type = 'threshold'"
         }),
         ("Substantial contribution (Traffic light mode)", {
             "fields": ("sc_criteria_green", "sc_criteria_amber", "sc_criteria_red"),
             "description": "Used when sc_criteria_type = 'traffic_light'"
         }),
-        ("Non-eligibility", {
-            "fields": ("non_eligibility_criteria",),
-        }),
         ("DNSH", {
             "fields": (
+                "dnsh_climate_mitigation",
                 "dnsh_climate_adaptation",
                 "dnsh_water",
                 "dnsh_circular_economy",
@@ -101,3 +131,51 @@ class ActivityAdmin(admin.ModelAdmin):
             )
         }),
     )
+
+
+@admin.register(Practice)
+class PracticeAdmin(admin.ModelAdmin):
+    list_display = ("practice_name", "practice_level", "taxonomy", "environmental_objective", "sector", "subsector")
+    search_fields = ("practice_name", "taxonomy__name", "sector__name", "environmental_objective__name")
+    list_filter = ("taxonomy", "environmental_objective", "sector", "subsector", "practice_level")
+    list_select_related = ("taxonomy", "environmental_objective", "sector", "subsector")
+
+    fieldsets = (
+        ("Context", {
+            "fields": ("taxonomy", "environmental_objective", "sector", "subsector", "practice_level")
+        }),
+        ("Practice", {
+            "fields": ("practice_name", "practice_description")
+        }),
+        ("Threshold mode (MEO)", {
+            "fields": ("eligible_practices", "non_eligible_practices"),
+            "description": "Use these when the practice row corresponds to threshold-type criteria."
+        }),
+        ("Traffic-light mode (MEO)", {
+            "fields": ("green_practices", "amber_practices", "red_practices"),
+            "description": "Exactly one of these should be filled per row."
+        }),
+    )
+
+@admin.register(RwandaAdaptation)
+class RwandaAdaptationAdmin(admin.ModelAdmin):
+    list_display = ("taxonomy", "environmental_objective", "sector", "hazard", "division", "type", "level", "criteria_type")
+    search_fields = ("taxonomy__name", "sector", "hazard", "division", "investment")
+    list_filter = ("taxonomy", "environmental_objective", "sector", "hazard", "type", "level", "criteria_type")
+
+# --- NUEVOS: CASO 2 y CASO 3 ---
+@admin.register(AdaptationWhitelist)
+class AdaptationWhitelistAdmin(admin.ModelAdmin):
+    list_display = ("title", "taxonomy", "environmental_objective", "sector", "language")
+    list_filter = ("taxonomy", "environmental_objective", "sector", "language")
+    search_fields = ("title", "description", "eligible_activities")
+    autocomplete_fields = ("taxonomy", "environmental_objective", "sector")
+    ordering = ("taxonomy__name", "environmental_objective__name", "sector__name", "title")
+
+@admin.register(AdaptationGeneralCriterion)
+class AdaptationGeneralCriterionAdmin(admin.ModelAdmin):
+    list_display = ("title", "taxonomy", "environmental_objective", "language")
+    list_filter = ("taxonomy", "environmental_objective", "language")
+    search_fields = ("title", "criteria", "subcriteria")
+    autocomplete_fields = ("taxonomy", "environmental_objective")
+    ordering = ("taxonomy__name", "environmental_objective__name", "title")
