@@ -21,7 +21,7 @@ class Taxonomy(models.Model):
         ("Middle East", "Middle East"),
         ("Other", "Other"),
     ]
-    name = models.CharField(max_length=255, unique=True)
+    name = models.TextField(unique=True)
     description = models.TextField(blank=True)
     region = models.CharField(
         max_length=50,
@@ -56,7 +56,7 @@ class EnvironmentalObjective(models.Model):
 class Sector(models.Model):
     taxonomy = models.ForeignKey(Taxonomy, on_delete=models.CASCADE, related_name="sectors")
     environmental_objective = models.ForeignKey(EnvironmentalObjective, on_delete=models.CASCADE, related_name="sectors")
-    name = models.CharField(max_length=255)
+    name = models.CharField(max_length=512)
 
     class Meta:
         unique_together = ("taxonomy", "environmental_objective", "name")
@@ -70,7 +70,7 @@ class Subsector(models.Model):
     pero para la hoja maestra general es útil tener subsector cuando exista.
     """
     sector = models.ForeignKey(Sector, on_delete=models.CASCADE, related_name="subsectors")
-    name = models.CharField(max_length=255)
+    name = models.TextField()
 
     class Meta:
         unique_together = ("sector", "name")
@@ -95,7 +95,7 @@ class Activity(models.Model):
     economic_code = models.CharField(max_length=255)  # e.g. NACE, ISIC, PSIC codes
     
     # Actividad
-    name = models.CharField(max_length=255)
+    name = models.TextField()
     description = models.TextField(blank=True)
 
     contribution_type = models.CharField(max_length=50, choices=[
@@ -146,7 +146,7 @@ class Practice(models.Model):
     # Niveles MEO (Basic, Intermediate, Advanced, Additional eligible green practices, Amber, Red)
     practice_level = models.CharField(max_length=80, choices=DJANGO_PRACTICE_LEVEL_CHOICES)
 
-    practice_name = models.CharField(max_length=255, blank=True)         # puede venir vacío en algunos casos
+    practice_name = models.TextField(blank=True)         # puede venir vacío en algunos casos
     practice_description = models.TextField(blank=True)
 
     # MEO threshold
@@ -183,8 +183,8 @@ class RwandaAdaptation(models.Model):
     language = models.CharField(max_length=5, blank=True, default="EN")
 
     environmental_objective = models.CharField(max_length=100)  # "Climate adaptation"
-    sector = models.CharField(max_length=255)
-    hazard = models.CharField(max_length=255)
+    sector = models.TextField()
+    hazard = models.TextField()
     division = models.CharField(max_length=255)  # Rwanda usa 'division' en lugar de subsector
 
     investment = models.TextField()
@@ -227,7 +227,7 @@ class AdaptationWhitelist(models.Model):
     )
     sector = models.ForeignKey(Sector, on_delete=models.CASCADE, related_name="adaptation_whitelists")
 
-    title = models.CharField(max_length=255)
+    title = models.TextField()
 
     description = models.TextField(blank=True)
     eligible_activities = models.TextField(blank=True)
@@ -249,7 +249,7 @@ class AdaptationGeneralCriterion(models.Model):
         EnvironmentalObjective, on_delete=models.CASCADE, related_name="adaptation_general_criteria"
     )
 
-    title = models.CharField(max_length=255)
+    title = models.TextField()
     criteria = models.TextField(blank=True)
     subcriteria = models.TextField(blank=True)
 
