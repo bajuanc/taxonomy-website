@@ -16,6 +16,7 @@ import {
 } from "@mui/material";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import ReactCountryFlag from "react-country-flag";
+import { getFlagCodeFromAny } from "../utils/flags";
 
 const CONTINENTS = [
   "Europe",
@@ -107,14 +108,18 @@ const TaxonomyList = () => {
                       >
                         <CardContent>
                           <Typography variant="h6" gutterBottom sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                            {cc(taxonomy.country_code) && (
-                              <ReactCountryFlag
-                                countryCode={cc(taxonomy.country_code)}
-                                svg
-                                style={{ width: "1.2em", height: "1.2em", borderRadius: 3 }}
-                                title={cc(taxonomy.country_code)}
-                              />
-                            )}
+                            {(() => {
+                              const flagCode = getFlagCodeFromAny(taxonomy);
+                              return flagCode ? (
+                                <ReactCountryFlag
+                                  countryCode={flagCode}
+                                  svg
+                                  style={{ width: "1.2em", height: "1.2em", borderRadius: 3 }}
+                                  title={flagCode}
+                                />
+                              ) : null;
+                            })()}
+                            
                             {taxonomy.name}
                           </Typography>
 
