@@ -9,6 +9,7 @@ import RemoveIcon from "@mui/icons-material/Remove";
 import { Link as RouterLink } from "react-router-dom";
 import api from "../api/axios";
 import ReactCountryFlag from "react-country-flag";
+import { getFlagCodeFromAny } from "../utils/flags";
 
 const cc = (code) => (code ? String(code).trim().toUpperCase() : "");
 
@@ -124,13 +125,16 @@ const ObjectivesMatrix = () => {
                     }}
                   >
                     <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                      {cc(t.country_code) && (
-                        <ReactCountryFlag
-                          countryCode={cc(t.country_code)}
-                          svg
-                          style={{ width: "1.1em", height: "1.1em", borderRadius: 3 }}
-                        />
-                      )}
+                      {(() => {
+                        const flagCode = getFlagCodeFromAny(t);
+                        return flagCode ? (
+                          <ReactCountryFlag
+                            countryCode={flagCode}
+                            svg
+                            style={{ width: "1.1em", height: "1.1em", borderRadius: 3 }}
+                          />
+                        ) : null;
+                      })()}
                       <Typography variant="body2" sx={{ fontWeight: 600 }}>
                         {t.name}
                       </Typography>

@@ -27,6 +27,7 @@ import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import { Link as RouterLink, NavLink, useLocation } from "react-router-dom";
 import api from "../api/axios";
 import ReactCountryFlag from "react-country-flag";
+import { getFlagCodeFromAny } from "../utils/flags";
 
 const cc = (code) => (code ? String(code).trim().toUpperCase() : "");
 
@@ -231,14 +232,17 @@ export default function Header() {
                           alignItems: "center",
                         }}
                       >
-                        {cc(t.country_code) && (
-                          <ReactCountryFlag
-                            countryCode={cc(t.country_code)}
-                            svg
-                            style={{ width: "1.1em", height: "1.1em", borderRadius: 3 }}
-                            title={cc(t.country_code)}
-                          />
-                        )}
+                        {(() => {
+                          const flagCode = getFlagCodeFromAny(t);
+                          return flagCode ? (
+                            <ReactCountryFlag
+                              countryCode={flagCode}
+                              svg
+                              style={{ width: "1.1em", height: "1.1em", borderRadius: 3 }}
+                              title={flagCode}
+                            />
+                          ) : null;
+                        })()}
                         <Typography variant="body1" sx={{ fontWeight: 600 }}>
                           {t.name}
                         </Typography>
