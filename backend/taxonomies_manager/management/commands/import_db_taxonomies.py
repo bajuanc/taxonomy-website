@@ -329,8 +329,8 @@ class Command(BaseCommand):
                         environmental_objective=objective,
                         sector=sector,
                         subsector=subsector,
-                        taxonomy_code=taxonomy_code,
-                        defaults=defaults,
+                        name=activity_name,
+                        defaults={**defaults, "taxonomy_code": taxonomy_code},
                     )
                     if was_created:
                         main_counters["created"] += 1
