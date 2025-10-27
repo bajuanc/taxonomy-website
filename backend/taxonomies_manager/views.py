@@ -187,7 +187,7 @@ class AdaptationGeneralCriterionViewSet(viewsets.ReadOnlyModelViewSet):
 # Objetivos por taxonomía
 @api_view(["GET"])
 def environmental_objectives_by_taxonomy(request, taxonomy_id):
-    objectives = EnvironmentalObjective.objects.filter(taxonomy_id=taxonomy_id).order_by("name")
+    objectives = EnvironmentalObjective.objects.filter(taxonomy_id=taxonomy_id).order_by("display_name", "generic_name")
     serializer = EnvironmentalObjectiveSerializer(objectives, many=True)
     return Response(serializer.data)
 

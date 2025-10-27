@@ -44,13 +44,15 @@ class Taxonomy(models.Model):
 
 class EnvironmentalObjective(models.Model):
     taxonomy = models.ForeignKey(Taxonomy, on_delete=models.CASCADE, related_name="objectives")
-    name = models.CharField(max_length=100)
+    generic_name = models.CharField(max_length=100)
+    display_name = models.TextField(blank=True)
 
     class Meta:
-        unique_together = ("taxonomy", "name")
+        unique_together = ("taxonomy", "generic_name")
 
     def __str__(self):
-        return f"{self.name} ({self.taxonomy.name})"
+        shown = self.display_name or self.generic_name
+        return f"{shown} ({self.taxonomy.name})"
 
 
 class Sector(models.Model):

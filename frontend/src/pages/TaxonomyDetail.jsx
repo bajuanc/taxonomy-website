@@ -363,7 +363,7 @@ const TaxonomyDetail = () => {
           mb: 4,
           border: "1px solid",
           borderColor: "divider",
-          borderRadius: 3,
+          borderRadius: 1.5,
         }}
       >
         <Box
@@ -458,7 +458,7 @@ const TaxonomyDetail = () => {
                   }}
                 >
                   <Typography variant="h6" sx={{ m: 0, pr: 1, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                    {objective.name}
+                    {objective.display_name ?? objective.generic_name}
                   </Typography>
 
                   {/* Badge de sectores */}
@@ -481,21 +481,22 @@ const TaxonomyDetail = () => {
           {!isAdaptation && (
             <>
               <Typography variant="h6" sx={{ mb: 2 }}>
-                Sectors for: <strong>{selectedObjective.name}</strong>
+                Sectors for: <strong>{selectedObjective.display_name ?? selectedObjective.generic_name}</strong>
               </Typography>
 
               {/* Contenedor centrado, 2 columnas iguales */}
               <Box sx={{ maxWidth: 960, mx: "auto" }}>
-                <Grid container spacing={2} justifyContent="center">
+                <Grid container spacing={2} alignItems="stretch">
                   {sectorsLoading
                     ? SectorSkeletons
-                    : sectors.length > 0
-                    ? sectors.map((sector) => {
-                        const Icon = iconForSector(sector.name);
+                    : (sectors.length > 0
+                      ? sectors.map((sector) => {
+                        const Icon = iconForSector(sector.name); // <- define Icon aquí
                         return (
-                          <Grid item xs={12} sm={6} md={6} key={sector.id}>
+                          <Grid item xs={12} sm={6} md={6} key={sector.id} sx={{ display: "flex" }}>
                             <Card
                               sx={{
+                                width: "100%",
                                 height: "100%",
                                 border: "1px solid",
                                 borderColor: "divider",
@@ -557,7 +558,6 @@ const TaxonomyDetail = () => {
 
                                 {/* Right: optional activities badge + chevron */}
                                 <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                                  {/* Si en el futuro llega sector.activity_count, se muestra aquí */}
                                   {typeof sector.activity_count === "number" && (
                                     <Chip size="small" label={`${sector.activity_count} activities`} />
                                   )}
@@ -574,13 +574,17 @@ const TaxonomyDetail = () => {
                           No sectors available for this objective.
                         </Typography>
                       </Grid>
-                    )}
+                      )
+                    )
+                  }
                 </Grid>
               </Box>
             </>
+
           )}
 
           {/* Si es Adaptation: tres secciones */}
+          
           {isAdaptation && (
             <>
               {/* --- Section A: Sectors (Case 1) --- */}
