@@ -32,10 +32,10 @@ class TaxonomyAdmin(admin.ModelAdmin):
 # --- Environmental Objective ---
 @admin.register(EnvironmentalObjective)
 class EnvironmentalObjectiveAdmin(admin.ModelAdmin):
-    list_display = ("name", "taxonomy")
+    list_display = ("taxonomy","generic_name", "display_name")
     list_filter = ("taxonomy__region", "taxonomy")
-    search_fields = ("name", "taxonomy__name")
-    ordering = ("taxonomy__name", "name")
+    search_fields = ("generic_name", "display_name", "taxonomy__name")
+    ordering = ("taxonomy__name", "generic_name")
     list_select_related = ("taxonomy",)
 
 class SubsectorInline(admin.TabularInline):

@@ -270,7 +270,11 @@ const ProjectReview = () => {
             fullWidth
             disabled={!taxonomyId}
           >
-            {objectives.map((o) => (<MenuItem key={o.id} value={o.id}>{o.name}</MenuItem>))}
+            {objectives.map((o) => (
+              <MenuItem key={o.id} value={o.id}>
+                {o.display_name || o.generic_name || o.name}
+              </MenuItem>
+            ))}
           </TextField>
         )}
       </CardContent>
@@ -484,7 +488,12 @@ const ProjectReview = () => {
               Taxonomy: {taxonomies.find(t => String(t.id) === String(taxonomyId))?.name || "—"}
             </Typography>
             <Typography variant="body2" color="text.secondary">
-              Objective: {objectives.find(o => String(o.id) === String(objectiveId))?.name || "—"}
+              Objective: {
+                (() => {
+                  const o = objectives.find(x => String(x.id) === String(objectiveId));
+                  return o ? (o.display_name || o.generic_name || o.name) : "—";
+                })()
+              }
             </Typography>
             <Typography variant="body2" color="text.secondary">
               Sector: {sectorId === "__none__" ? "Not found" : (sectors.find(s => String(s.id) === String(sectorId))?.name || "—")}

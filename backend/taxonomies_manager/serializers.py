@@ -30,9 +30,14 @@ class EnvironmentalObjectiveSerializer(serializers.ModelSerializer):
         fields = "__all__"
 
 class EnvironmentalObjectiveBriefSerializer(serializers.ModelSerializer):
+    name = serializers.SerializerMethodField()
+
+    def get_name(self, obj):
+        return obj.display_name or obj.generic_name
+
     class Meta:
         model = EnvironmentalObjective
-        fields = ("id", "name")
+        fields = ("id", "generic_name", "display_name", "name")
 
 class SubsectorSerializer(serializers.ModelSerializer):
     class Meta:

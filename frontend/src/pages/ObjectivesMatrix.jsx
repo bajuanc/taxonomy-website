@@ -13,6 +13,16 @@ import { getFlagCodeFromAny } from "../utils/flags";
 
 const cc = (code) => (code ? String(code).trim().toUpperCase() : "");
 
+const GENERIC_OBJECTIVES = [
+  "Climate mitigation",
+  "Climate adaptation",
+  "Water",
+  "Biodiversity",
+  "Circular economy",
+  "Pollution prevention",
+  "Multiple environmental objectives",
+];
+
 const ObjectivesMatrix = () => {
   const [loading, setLoading] = useState(true);
   const [taxonomies, setTaxonomies] = useState([]);
@@ -46,19 +56,15 @@ const ObjectivesMatrix = () => {
     load();
   }, []);
 
-  const allObjectiveNames = useMemo(() => {
-    const set = new Set();
-    Object.values(objectivesByTaxonomy).forEach((list) =>
-      list.forEach((o) => set.add(o.name))
-    );
-    return Array.from(set).sort((a, b) => a.localeCompare(b));
-  }, [objectivesByTaxonomy]);
+  // columnas fijas (7 objetivos genéricos)
+  const columnKeys = GENERIC_OBJECTIVES;
 
-  const hasObjective = (taxonomyId, objectiveName) =>
-    (objectivesByTaxonomy[taxonomyId] || []).some((o) => o.name === objectiveName);
+  const hasObjective = (taxonomyId, genericName) =>
+    (objectivesByTaxonomy[taxonomyId] || []).some((o) => o.generic_name === genericName);
 
-  const getObjectiveByName = (taxonomyId, objectiveName) =>
-    (objectivesByTaxonomy[taxonomyId] || []).find((o) => o.name === objectiveName);
+  const getObjectiveByName = (taxonomyId, genericName) =>
+    (objectivesByTaxonomy[taxonomyId] || []).find((o) => o.generic_name === genericName);
+
 
   return (
     <Container maxWidth="lg" sx={{ mt: 4, mb: 8 }}>
@@ -95,16 +101,8 @@ const ObjectivesMatrix = () => {
                 >
                   Taxonomy
                 </TableCell>
-                {allObjectiveNames.map((obj) => (
-                  <TableCell
-                    key={obj}
-                    align="center"
-                    sx={{
-                      fontWeight: 700,
-                      whiteSpace: "nowrap",
-                      minWidth: 140,
-                    }}
-                  >
+                {columnKeys.map((obj) => (
+                  <TableCell key={obj} align="center" sx={{ fontWeight: 700, whiteSpace: "nowrap", minWidth: 140 }}>
                     {obj}
                   </TableCell>
                 ))}
@@ -141,7 +139,7 @@ const ObjectivesMatrix = () => {
                     </Box>
                   </TableCell>
 
-                  {allObjectiveNames.map((obj) => {
+                  {columnKeys.map((obj) => {
                     const present = hasObjective(t.id, obj);
                     if (!present) {
                       return (
@@ -154,7 +152,7 @@ const ObjectivesMatrix = () => {
                     const target = getObjectiveByName(t.id, obj); // { id, name }
                     return (
                       <TableCell key={`${t.id}-${obj}`} align="center">
-                        <Tooltip title={`Go to ${t.name} → ${obj} sectors`}>
+                        <Tooltip title={`Go to ${t.name} → ${target?.display_name || obj} sectors`}>
                           <IconButton
                             component={RouterLink}
                             to={`/taxonomies/${t.id}`}

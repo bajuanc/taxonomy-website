@@ -114,6 +114,7 @@ class Command(BaseCommand):
             taxonomy_name = pick(row, "taxonomy")
             language = pick(row, "language", default="ES")
             objective_name = pick(row, "environmental_objective", "objective", "objetivo")
+            objective_display_name = pick(row,"objective_original_name",default="")
             sector_name = pick(row, "sector") or (default_sector or "").strip()
             if not sector_name:
                 warnings += 1
@@ -130,8 +131,13 @@ class Command(BaseCommand):
             # Upserts de jerarquía
             taxonomy, _ = Taxonomy.objects.get_or_create(name=taxonomy_name)
             objective, _ = EnvironmentalObjective.objects.get_or_create(
-                taxonomy=taxonomy, name=objective_name
+                taxonomy=taxonomy,
+                generic_name=objective_name,
             )
+            if objective_display_name:
+                if objective.display_name != objective_display_name:
+                    objective.display_name = objective_display_name
+                    objective.save(update_fields=["display_name"])
             sector, _ = Sector.objects.get_or_create(
                 taxonomy=taxonomy, environmental_objective=objective, name=sector_name
             )
@@ -179,7 +185,7 @@ class Command(BaseCommand):
             taxonomy_name = pick(row, "taxonomy")
             language = pick(row, "language", default="ES")
             objective_name = pick(row, "environmental_objective", "objective", "objetivo")
-
+            objective_display_name = pick(row,"objective_original_name",default="")
             criteria = pick(row, "criteria", "criterion", "criterio")
             subcriteria = pick(row, "subcriteria", "subcriterio", "detalle")
 
@@ -188,8 +194,12 @@ class Command(BaseCommand):
 
             taxonomy, _ = Taxonomy.objects.get_or_create(name=taxonomy_name)
             objective, _ = EnvironmentalObjective.objects.get_or_create(
-                taxonomy=taxonomy, name=objective_name
+                taxonomy=taxonomy, generic_name=objective_name,
             )
+            if objective_display_name:
+                if objective.display_name != objective_display_name:
+                    objective.display_name = objective_display_name
+                    objective.save(update_fields=["display_name"])
 
             obj, was_created = AdaptationGeneralCriterion.objects.update_or_create(
                 taxonomy=taxonomy,
@@ -235,6 +245,7 @@ class Command(BaseCommand):
             region          = to_str(row.get("region")) or "Other"
             language        = to_str(row.get("language")) or "EN"
             objective_name  = to_str(row.get("environmental_objective"))
+            objective_display_name = pick(row,"objective_original_name",default="")
             sector_name     = to_str(row.get("sector"))
             subsector_name  = to_str(row.get("subsector")) or ""
 
@@ -271,7 +282,11 @@ class Command(BaseCommand):
 
             if dry_run:
                 taxonomy = Taxonomy(name=taxonomy_name)
-                objective = EnvironmentalObjective(taxonomy=taxonomy, name=objective_name)
+                objective = EnvironmentalObjective(
+                    taxonomy=taxonomy,
+                    generic_name=objective_name,
+                    display_name=objective_display_name or objective_name,
+                )
                 sector = Sector(taxonomy=taxonomy, environmental_objective=objective, name=sector_name)
                 subsector = Subsector(sector=sector, name=subsector_name) if subsector_name else None
             else:
@@ -285,8 +300,13 @@ class Command(BaseCommand):
                     },
                 )
                 objective, _ = EnvironmentalObjective.objects.get_or_create(
-                    taxonomy=taxonomy, name=objective_name
+                    taxonomy=taxonomy, 
+                    generic_name=objective_name,
                 )
+                if objective_display_name:
+                    if objective.display_name != objective_display_name:
+                        objective.display_name = objective_display_name
+                        objective.save(update_fields=["display_name"])
                 sector, _ = Sector.objects.get_or_create(
                     taxonomy=taxonomy, environmental_objective=objective, name=sector_name
                 )
@@ -339,7 +359,7 @@ class Command(BaseCommand):
 
             # Practice (MEO)
             # Practice (solo cuando el objetivo es MEO)
-            if practice_level and (objective_name == OBJECTIVE_MEO):
+            if practice_level and (objective.generic_name == OBJECTIVE_MEO):
                 norm_level = practice_level
                 if norm_level not in ALLOWED_PRACTICE_LEVELS:
                     warn(
@@ -405,7 +425,7 @@ class Command(BaseCommand):
                             else:
                                 main_counters["updated"] += 1
             
-            elif practice_level and (objective_name != OBJECTIVE_MEO):
+            elif practice_level and (objective.generic_name != OBJECTIVE_MEO):
                 # Seguridad: si el Excel trae "practice_level" para adaptación u otros objetivos, lo ignoramos.
                 warn(self.stdout, f"[fila {excel_rownum}] practice_level presente pero objetivo no es MEO; se ignora fila de Practice.", main_counters)
 
