@@ -205,10 +205,10 @@ class Command(BaseCommand):
                 taxonomy=taxonomy,
                 environmental_objective=objective,
                 title=title,
+                subcriteria= subcriteria,
                 defaults={
                     "language": language,
                     "criteria": criteria,
-                    "subcriteria": subcriteria,
                 },
             )
             if was_created:

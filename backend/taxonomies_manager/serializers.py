@@ -6,6 +6,10 @@ from .models import (
 
 )
 from .constants import OBJECTIVE_MEO
+import unicodedata
+
+def _norm(s: str) -> str:
+    return unicodedata.normalize("NFD", s or "").encode("ascii", "ignore").decode().lower().strip()
 
 
 # =========================
@@ -200,8 +204,9 @@ class SectorWithContentSerializer(serializers.ModelSerializer):
         return ActivitySlimSerializer(qs, many=True).data
 
     def get_practices(self, obj):
-        # prácticas solo si el objetivo es MEO
-        if obj.environmental_objective.name != OBJECTIVE_MEO:
+        # prácticas solo si el objetivo es MEO (comparación robusta)
+        label = _norm((obj.environmental_objective.display_name or obj.environmental_objective.generic_name or ""))
+        if label not in (_norm(OBJECTIVE_MEO), "multiple environmental objectives", "meo"):
             return []
         qs = obj.practices.all().select_related("sector", "environmental_objective", "taxonomy")
         return PracticeSlimSerializer(qs, many=True).data
@@ -210,7 +215,11 @@ class SectorWithContentSerializer(serializers.ModelSerializer):
 class ObjectiveDetailSerializer(serializers.ModelSerializer):
     """
     Un objetivo con sus sectores y contenido (activities/practices).
+    Incluye un campo 'name' calculado para no depender de un atributo inexistente.
     """
+    # ✅ nombre calculado (display_name o generic_name)
+    name = serializers.SerializerMethodField()
+
     sectors = serializers.SerializerMethodField()
     adaptation_whitelists = serializers.SerializerMethodField()
     adaptation_general_criteria = serializers.SerializerMethodField()
@@ -219,38 +228,66 @@ class ObjectiveDetailSerializer(serializers.ModelSerializer):
         model = EnvironmentalObjective
         fields = ["id", "name", "sectors", "adaptation_whitelists", "adaptation_general_criteria"]
 
+    def get_name(self, obj):
+        return obj.display_name or obj.generic_name
+
+    def _is_adaptation(self, obj):
+        # Normaliza para cubrir "Adaptación", "Adaptation", etc.
+        raw = (obj.display_name or obj.generic_name or "")
+        norm = (
+            raw
+            .lower()
+            .encode("utf-8", "ignore")
+            .decode("utf-8")
+        )
+        # si quieres quitar acentos explícitamente:
+        # import unicodedata
+        # norm = unicodedata.normalize("NFD", raw).encode("ascii", "ignore").decode("ascii").lower()
+        return "adapt" in norm  # cubre "adaptation" y "adaptación"
+
     def get_sectors(self, obj):
         qs = obj.sectors.all().select_related("taxonomy", "environmental_objective")
         return SectorWithContentSerializer(qs, many=True).data
 
     def get_adaptation_whitelists(self, obj):
-        # Solo si es un objetivo de adaptación
-        if "adaptation" not in obj.name.lower():
+        # ✅ solo si es objetivo de adaptación
+        if not self._is_adaptation(obj):
             return []
-        items = obj.adaptation_whitelists.select_related("taxonomy","environmental_objective","sector").all().order_by("sector__name", "title")
-        # Agrupado por sector
-        data = {}
+        items = (
+            obj.adaptation_whitelists
+            .select_related("taxonomy", "environmental_objective", "sector")
+            .all()
+            .order_by("sector__name", "title")
+        )
+        # Agrupar por sector
+        grouped = {}
         for it in items:
             sid = it.sector_id
-            data.setdefault(sid, {
-                "sector": {"id": sid, "name": it.sector.name},
-                "entries": [],
-            })
-            data[sid]["entries"].append(AdaptationWhitelistSerializer(it).data)
-        # devuelve lista
-        return list(data.values())
+            if sid not in grouped:
+                grouped[sid] = {
+                    "sector": {"id": sid, "name": it.sector.name if it.sector else None},
+                    "entries": [],
+                }
+            grouped[sid]["entries"].append(AdaptationWhitelistSerializer(it).data)
+        return list(grouped.values())
 
     def get_adaptation_general_criteria(self, obj):
-        if "adaptation" not in obj.name.lower():
+        if not self._is_adaptation(obj):
             return []
-        items = obj.adaptation_general_criteria.select_related("taxonomy","environmental_objective").all().order_by("title")
+        items = (
+            obj.adaptation_general_criteria
+            .select_related("taxonomy", "environmental_objective")
+            .all()
+            .order_by("title")
+        )
         return AdaptationGeneralCriterionSerializer(items, many=True).data
+
 
 class TaxonomyDetailSerializer(serializers.ModelSerializer):
     """
     Una taxonomía con objetivos (anidados) + (opcional) medidas Rwanda.
     """
-    objectives = ObjectiveDetailSerializer(source="objectives", many=True, read_only=True)
+    objectives = ObjectiveDetailSerializer(many=True, read_only=True)
     # Si quieres adjuntar Rwanda en el detalle de la taxonomía:
     rwanda_adaptation = serializers.SerializerMethodField()
 

@@ -47,21 +47,26 @@ class SubsectorInline(admin.TabularInline):
 class SectorAdmin(admin.ModelAdmin):
     list_display = ("name", "taxonomy","environmental_objective")
     list_filter = ("taxonomy__region", "taxonomy", "environmental_objective")
-    search_fields = ("name", "environmental_objective__name", "taxonomy__name")
-    ordering = ("taxonomy__name", "environmental_objective__name", "name")
+    search_fields = ("name", "environmental_objective__display_name", "environmental_objective__generic_name", "taxonomy__name")
+    ordering = ("taxonomy__name", "environmental_objective__display_name", "environmental_objective__generic_name", "name")
     list_select_related = ("taxonomy", "environmental_objective")
     inlines = [SubsectorInline]
 
-    def taxonomy(self, obj):
-        return obj.taxonomy
-    taxonomy.admin_order_field = "environmental_objective__taxonomy__name"
 
 # --- Subsector ---
 @admin.register(Subsector)
 class SubsectorAdmin(admin.ModelAdmin):
     list_display = ("name", "sector")
-    search_fields = ("name", "sector__name")
+    search_fields = (
+        "name",
+        "sector__name",
+        "sector__environmental_objective__display_name",
+        "sector__environmental_objective__generic_name",
+        "sector__taxonomy__name",
+    )
     list_filter = ("sector__taxonomy", "sector__environmental_objective")
+    ordering = ("sector__taxonomy__name", "sector__environmental_objective__generic_name", "sector__name", "name")
+
 
 # --- Activity ---
 @admin.register(Activity)
@@ -90,10 +95,11 @@ class ActivityAdmin(admin.ModelAdmin):
         "taxonomy_code",
         "taxonomy__name",
         "economic_code",
-        "environmental_objective__name",
+        "environmental_objective__display_name",
+        "environmental_objective__generic_name",
         "sector__name",
     )
-    ordering = ("taxonomy__name", "environmental_objective__name", "sector__name", "taxonomy_code")
+    ordering = ("taxonomy__name", "environmental_objective__display_name", "environmental_objective__generic_name", "sector__name", "taxonomy_code")
     list_select_related = ("taxonomy", "environmental_objective", "sector", "subsector")
 
     fieldsets = (
@@ -135,8 +141,20 @@ class ActivityAdmin(admin.ModelAdmin):
 
 @admin.register(Practice)
 class PracticeAdmin(admin.ModelAdmin):
-    list_display = ("practice_name", "practice_level", "taxonomy", "environmental_objective", "sector", "subsector")
-    search_fields = ("practice_name", "taxonomy__name", "sector__name", "environmental_objective__name")
+    list_display = ("practice_name", "practice_level", "taxonomy", "objective_disp", "sector", "subsector")
+
+    @admin.display(description="Objective", ordering="environmental_objective__display_name")
+    def objective_disp(self, obj):
+        return obj.environmental_objective.display_name or obj.environmental_objective.generic_name
+    
+    search_fields = (
+        "practice_name",
+        "taxonomy__name",
+        "sector__name",
+        "environmental_objective__display_name",
+        "environmental_objective__generic_name",
+    )
+
     list_filter = ("taxonomy", "environmental_objective", "sector", "subsector", "practice_level")
     list_select_related = ("taxonomy", "environmental_objective", "sector", "subsector")
 
@@ -163,19 +181,33 @@ class RwandaAdaptationAdmin(admin.ModelAdmin):
     search_fields = ("taxonomy__name", "sector", "hazard", "division", "investment")
     list_filter = ("taxonomy", "environmental_objective", "sector", "hazard", "type", "level", "criteria_type")
 
+
+
+
 # --- NUEVOS: CASO 2 y CASO 3 ---
 @admin.register(AdaptationWhitelist)
 class AdaptationWhitelistAdmin(admin.ModelAdmin):
-    list_display = ("title", "taxonomy", "environmental_objective", "sector", "language")
+    list_display = ("title", "taxonomy", "objective_disp", "sector", "language")
+
+    @admin.display(description="Objective", ordering="environmental_objective__display_name")
+    def objective_disp(self, obj):
+        return obj.environmental_objective.display_name or obj.environmental_objective.generic_name
+    
     list_filter = ("taxonomy", "environmental_objective", "sector", "language")
     search_fields = ("title", "description", "eligible_activities")
     autocomplete_fields = ("taxonomy", "environmental_objective", "sector")
-    ordering = ("taxonomy__name", "environmental_objective__name", "sector__name", "title")
+    ordering = ("taxonomy__name", "environmental_objective__generic_name", "sector__name", "title")
 
 @admin.register(AdaptationGeneralCriterion)
 class AdaptationGeneralCriterionAdmin(admin.ModelAdmin):
-    list_display = ("title", "taxonomy", "environmental_objective", "language")
+    list_display = ("title", "taxonomy", "objective_disp", "language")
+
+    @admin.display(description="Objective", ordering="environmental_objective__display_name")
+    def objective_disp(self, obj):
+        return obj.environmental_objective.display_name or obj.environmental_objective.generic_name
+
+
     list_filter = ("taxonomy", "environmental_objective", "language")
     search_fields = ("title", "criteria", "subcriteria")
     autocomplete_fields = ("taxonomy", "environmental_objective")
-    ordering = ("taxonomy__name", "environmental_objective__name", "title")
+    ordering = ("taxonomy__name", "environmental_objective__generic_name", "title")
