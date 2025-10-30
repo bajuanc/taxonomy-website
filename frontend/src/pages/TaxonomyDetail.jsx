@@ -3,21 +3,15 @@ import { useParams, Link as RouterLink, useLocation, useNavigate } from "react-r
 import { useEffect, useMemo, useState } from "react";
 import api from "../api/axios";
 import {
-  Container,
-  Typography,
-  Grid,
-  Card,
-  CardActionArea,
-  CircularProgress,
-  Box,
-  Button,
-  Skeleton,
-  Breadcrumbs,
-  Chip,
-  Divider,
+  Container, Typography, Grid, Card, CardActionArea, CircularProgress, Box,
+  Button, Skeleton, Breadcrumbs, Chip, Divider,
+  Dialog, DialogTitle, DialogContent, DialogActions, IconButton,
+  Accordion, AccordionSummary, AccordionDetails,
   Link as MuiLink,
 } from "@mui/material";
+import CloseIcon from "@mui/icons-material/Close";
 import NavigateNextIcon from "@mui/icons-material/NavigateNext";
+import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 
 // Icons for sector tiles (tu mapeo existente)
 import BoltIcon from "@mui/icons-material/Bolt";
@@ -55,7 +49,30 @@ import CrisisAlertIcon from "@mui/icons-material/CrisisAlert";
 import ReactCountryFlag from "react-country-flag";
 import { getFlagCodeFromAny } from "../utils/flags";
 
+const normalizeName = (s = "") =>
+  s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+
 const TILE_MIN_HEIGHT = 112;
+
+const ADAPTATION_CASE_TAXONOMIES = ["costa rica", "panama", "panamá", "ccsbso"];
+
+const isAdaptationSplitEnabledFor = (taxonomy) => {
+  const name = (taxonomy?.name || "").toLowerCase();
+  return ADAPTATION_CASE_TAXONOMIES.some((k) => name.includes(k));
+};
+
+// Estilo reutilizable para cards “seleccionables” (match con objetivos)
+const selectableCardSx = (selected) => ({
+  cursor: "pointer",
+  width: "100%",
+  height: "100%",
+  border: "2px solid",
+  borderColor: selected ? "primary.main" : "divider",
+  bgcolor: selected ? "action.hover" : "background.paper",
+  transition: "all 0.2s ease",
+  boxShadow: selected ? 6 : 2,
+});
+
 
 const TaxonomyDetail = () => {
   const { id } = useParams();
@@ -66,6 +83,9 @@ const TaxonomyDetail = () => {
 
   const [sectors, setSectors] = useState([]);
   const [sectorsLoading, setSectorsLoading] = useState(false);
+  const [sectorsAll, setSectorsAll] = useState([]);            // todos los sectores del objetivo
+  const [sectorsCase1, setSectorsCase1] = useState([]);        // solo sectores con actividades (Case 1)
+  const [countCase1, setCountCase1] = useState(0);             // conteo estable para el chip
 
   const [objectiveSectorCounts, setObjectiveSectorCounts] = useState({}); // { [objectiveId]: number }
   const [countsLoading, setCountsLoading] = useState(false);
@@ -80,6 +100,40 @@ const TaxonomyDetail = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const cameFromObjectives = location.state?.fromObjectivesMatrix === true;
+
+  // Case selector: "", "case1", "case2", "case3"
+  const [activeCase, setActiveCase] = useState("");
+
+  // Modales
+  const [whitelistModal, setWhitelistModal] = useState({ open: false, sector: null, entries: [] });
+  const [criteriaModal, setCriteriaModal] = useState({ open: false, item: null });
+
+  const objectiveName =
+    (selectedObjective?.display_name ??
+      selectedObjective?.generic_name ??
+      selectedObjective?.name ??
+      selectedObjective?.title ??
+    "").trim();
+
+  const isAdaptation = normalizeName(objectiveName).includes("adapt");
+  const flagCode = getFlagCodeFromAny(taxonomy);
+  const splitEnabled = isAdaptation && isAdaptationSplitEnabledFor(taxonomy);
+
+  // Agrupa whitelist por sector para que tenga la misma forma que esperas en UI
+  const groupWhitelistBySector = (rows = []) => {
+    const map = new Map(); // key: sector.id
+    rows.forEach(r => {
+      const s = r.sector || {};  // {id, name}
+      const key = s?.id ?? `no-sector-${Math.random()}`;
+      if (!map.has(key)) map.set(key, { sector: s, entries: [] });
+      map.get(key).entries.push({
+        description: r.description || "",
+        eligible_activities: r.eligible_activities || r.examples || ""
+      });
+    });
+    return Array.from(map.values());
+  };
+
 
   // --- Fetch taxonomy + objectives
   useEffect(() => {
@@ -97,6 +151,7 @@ const TaxonomyDetail = () => {
         const response = await api.get(`taxonomies/${id}/environmental-objectives/`);
         const list = response?.data || [];
         setObjectives(list);
+
       } catch (error) {
         console.error("Error fetching objectives:", error);
       } finally {
@@ -146,70 +201,165 @@ const TaxonomyDetail = () => {
   // --- Load sectors for the selected objective
   useEffect(() => {
     if (!selectedObjective) return;
-    const fetchSectors = async () => {
+
+    const load = async () => {
       try {
         setSectorsLoading(true);
-        const response = await api.get(
+
+        // 1) Siempre traemos TODOS los sectores del objetivo (para el badge de objetivos y otros usos)
+        const allRes = await api.get(
           `taxonomies/${id}/objectives/${selectedObjective.id}/sectors/`
         );
-        setSectors(response.data || []);
-      } catch (error) {
-        console.error("Error fetching sectors:", error);
+        const all = Array.isArray(allRes?.data) ? allRes.data : [];
+        setSectorsAll(all); // guardamos todos
+
+        // 2) En adaptación + split, traemos también SOLO Case 1 (sectores con actividades)
+        if (isAdaptation && splitEnabled) {
+          const c1Res = await api.get(
+            `taxonomies/${id}/objectives/${selectedObjective.id}/sectors/?only_case1=1`
+          );
+          const onlyC1 = Array.isArray(c1Res?.data) ? c1Res.data : [];
+          setSectorsCase1(onlyC1);
+          setCountCase1(onlyC1.length);  // ← conteo estable para el chip de Case 1
+
+          // grid visible por defecto (si estás en split): Case 1
+          setSectors(onlyC1);
+        } else {
+          // fuera de split (o no adaptación): el grid usa todos
+          setSectors(all);
+          setCountCase1(0); // no aplica
+        }
+
+        // LOG opcional
+        // console.log("[Sectors] all:", all.length, "| case1:", (isAdaptation && splitEnabled) ? sectorsCase1.length : "-");
+
+      } catch (err) {
+        console.error("Error fetching sectors:", err);
+        setSectorsAll([]);
+        setSectorsCase1([]);
+        setCountCase1(0);
+        setSectors([]);
       } finally {
         setSectorsLoading(false);
       }
     };
-    fetchSectors();
-  }, [selectedObjective, id]);
+
+    load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id, selectedObjective, isAdaptation, splitEnabled]);
+
+  useEffect(() => {
+    if (!isAdaptation || !splitEnabled) return;
+    if (activeCase === "case1") {
+      setSectors(sectorsCase1);
+    } else {
+      // en case2/case3 no mostramos grid de sectores, pero por consistencia dejamos 'all'
+      setSectors(sectorsAll);
+    }
+  }, [activeCase, isAdaptation, splitEnabled, sectorsCase1, sectorsAll]);
+
 
   // --- If Adaptation objective: fetch detail once and extract Case2/Case3 for this objective
   useEffect(() => {
-    const isAdaptation = !!selectedObjective?.name?.toLowerCase().includes("adapt");
-    if (!isAdaptation) {
+    const objectiveName = (selectedObjective?.display_name || selectedObjective?.generic_name || selectedObjective?.name || "");
+    const isAdaptationLocal = normalizeName(objectiveName).includes("adapt");
+    if (!selectedObjective) return;
+
+    if (!isAdaptationLocal) {
       setAdaptationWhitelistGroups([]);
       setAdaptationGeneralCriteria([]);
       return;
     }
 
-    const fetchDetail = async () => {
-      try {
-        const res = await api.get(`taxonomies/${id}/detail/`);
-        const data = res?.data;
-        // Busca lista de objetivos dentro del detail (flexible a estructura)
-        const candidates =
-          data?.objectives ||
-          data?.environmental_objectives ||
-          data?.results ||
-          [];
+    let cancelled = false;
 
-        const match =
-          candidates.find?.((o) => String(o?.id) === String(selectedObjective.id)) || null;
+    const fetchDetailWithFallback = async () => {
+      try {
+        // 1) Intento principal: /taxonomies/:id/detail/
+        const res = await api.get(`taxonomies/${id}/detail/`);
+        const data = res?.data || {};
+        const candidates = data?.objectives || data?.environmental_objectives || data?.results || [];
+        const match = candidates.find?.((o) => String(o?.id) === String(selectedObjective.id)) || null;
 
         if (match) {
-          setAdaptationWhitelistGroups(match.adaptation_whitelists || []);
-          setAdaptationGeneralCriteria(match.adaptation_general_criteria || []);
-        } else {
-          // Fallback: limpia si no hay match
-          setAdaptationWhitelistGroups([]);
-          setAdaptationGeneralCriteria([]);
+          if (!cancelled) {
+            setAdaptationWhitelistGroups(match.adaptation_whitelists || []);
+            setAdaptationGeneralCriteria(match.adaptation_general_criteria || []);
+            console.log("[TaxDetail] detail ok → wl:", (match.adaptation_whitelists || []).length,
+                      " gc:", (match.adaptation_general_criteria || []).length);
+          }
+          return; // éxito → no necesitamos fallback
         }
+
+        // Si no hay match, seguimos al fallback
+        console.warn("[TaxDetail] /detail sin match de objetivo. Voy a fallback endpoints…");
+        throw new Error("No match in /detail");
       } catch (e) {
         console.warn("Detail endpoint not available or different shape:", e?.message);
-        setAdaptationWhitelistGroups([]);
-        setAdaptationGeneralCriteria([]);
+
+        // 2) Fallback: endpoints dedicados
+        try {
+          const [wlRes, gcRes] = await Promise.allSettled([
+            api.get(`adaptation-whitelists/?taxonomy=${id}&objective=${selectedObjective.id}`),
+            api.get(`adaptation-general-criteria/?taxonomy=${id}&objective=${selectedObjective.id}`)
+          ]);
+
+          if (!cancelled) {
+            if (wlRes.status === "fulfilled") {
+              const grouped = groupWhitelistBySector(wlRes.value?.data || []);
+              setAdaptationWhitelistGroups(grouped);
+              console.log("[TaxDetail] fallback wl:", grouped.length);
+            } else {
+              setAdaptationWhitelistGroups([]);
+              console.log("[TaxDetail] fallback wl: 0 (request failed)");
+            }
+
+            if (gcRes.status === "fulfilled") {
+              setAdaptationGeneralCriteria(gcRes.value?.data || []);
+              console.log("[TaxDetail] fallback gc:", (gcRes.value?.data || []).length);
+            } else {
+              setAdaptationGeneralCriteria([]);
+              console.log("[TaxDetail] fallback gc: 0 (request failed)");
+            }
+          }
+        } catch (err2) {
+          if (!cancelled) {
+            setAdaptationWhitelistGroups([]);
+            setAdaptationGeneralCriteria([]);
+            console.error("[TaxDetail] fallback endpoints also failed:", err2?.message);
+          }
+        }
       } finally {
-        setDetailFetched(true);
+        if (!cancelled) setDetailFetched(true);
       }
     };
 
-    // Evita múltiples fetch si ya lo trajimos una vez; igual refrescamos al cambiar objetivo
-    fetchDetail();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    fetchDetailWithFallback();
+    return () => { cancelled = true; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id, selectedObjective]);
 
+  // Contadores por case
+  const countCase2 = (adaptationWhitelistGroups || []).length;
+  const countCase3 = (adaptationGeneralCriteria || []).length;
+  
+  useEffect(() => {
+    if (!selectedObjective) return;
+    if (!isAdaptation || !splitEnabled) return;
+
+    // prioridad: Case1 > Case2 > Case3
+    if (countCase1 > 0) {
+      setActiveCase((c) => c || "case1");
+    } else if (countCase2 > 0) {
+      setActiveCase((c) => c || "case2");
+    } else if (countCase3 > 0) {
+      setActiveCase((c) => c || "case3");
+    } else {
+      setActiveCase("");
+    }
+  }, [isAdaptation, splitEnabled, countCase1, countCase2, countCase3]);
+
   // -------- icon mapper helpers (EN + ES), accent-insensitive
-  const normalizeName = (s = "") =>
-    s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
 
   const hasAny = (n, keywords) => keywords.some((k) => n.includes(k));
 
@@ -295,6 +445,7 @@ const TaxonomyDetail = () => {
     []
   );
 
+
   if (loading) {
     return (
       <Container sx={{ textAlign: "center", mt: 4 }}>
@@ -306,8 +457,21 @@ const TaxonomyDetail = () => {
     );
   }
 
-  const flagCode = getFlagCodeFromAny(taxonomy);
-  const isAdaptation = !!selectedObjective?.name?.toLowerCase().includes("adapt");
+
+  // ---QUITAR---
+  console.log("[TaxDetail] name:", taxonomy?.name,
+    "| objectiveName:", objectiveName,
+    "| selectedObjective:", selectedObjective,
+    "| isAdaptation:", isAdaptation,
+    "| splitEnabled:", splitEnabled
+  );
+
+  console.log("[TaxDetail] counts => case1:", sectors?.length || 0,
+    " case2:", (adaptationWhitelistGroups || []).length || 0,
+    " case3:", (adaptationGeneralCriteria || []).length || 0);
+
+  // ---QUITAR---
+
 
   return (
     <Container sx={{ mt: 2, mb: 6 }}>
@@ -444,7 +608,11 @@ const TaxonomyDetail = () => {
                   bgcolor: selected ? "action.hover" : "background.paper",
                   transition: "all 0.2s ease",
                 }}
-                onClick={() => setSelectedObjective(objective)}
+                onClick={() => {
+                  setSelectedObjective(objective);
+                  setActiveCase("");     // limpiamos para que el effect lo fije si corresponde
+                }}
+
               >
                 <CardActionArea
                   sx={{
@@ -583,205 +751,407 @@ const TaxonomyDetail = () => {
 
           )}
 
-          {/* Si es Adaptation: tres secciones */}
-          
+          {/* Si es Adaptation */}
           {isAdaptation && (
             <>
-              {/* --- Section A: Sectors (Case 1) --- */}
-              <Typography variant="h6" sx={{ mb: 1 }}>
-                Sectors
-              </Typography>
-              <Divider sx={{ mb: 2 }} />
+              {splitEnabled ? (
 
-              <Box sx={{ maxWidth: 960, mx: "auto" }}>
-                <Grid container spacing={2} justifyContent="center">
-                  {sectorsLoading
-                    ? SectorSkeletons
-                    : sectors.length > 0
-                    ? sectors.map((sector) => {
-                        const Icon = iconForSector(sector.name);
-                        return (
-                          <Grid item xs={12} sm={6} md={6} key={sector.id}>
+                <>
+                  {/* Option cards solo para CCSBSO / Panamá / Costa Rica y solo si hay datos en cada case */}
+                  <Typography variant="h6" sx={{ mb: 2 }}>
+                    Choose a view for: <strong>{selectedObjective.name}</strong>
+                  </Typography>
+
+                  <Grid container spacing={2}>
+                    {/* Case 1 */}
+                    {countCase1 > 0 && (
+                      <Grid item xs={12} sm={6} md={4}>
+                        {(() => {
+                          const selected = activeCase === "case1";
+                          return (
                             <Card
-                              sx={{
-                                height: "100%",
-                                border: "1px solid",
-                                borderColor: "divider",
-                                transition: "transform .2s ease, box-shadow .2s ease",
-                                "&:hover": { transform: "translateY(-4px)", boxShadow: 6 },
-                              }}
+                              elevation={selected ? 6 : 2}
+                              sx={selectableCardSx(selected)}
+                              onClick={() => setActiveCase("case1")}
                             >
                               <CardActionArea
-                                component={RouterLink}
-                                to={`/taxonomies/${id}/objectives/${selectedObjective.id}/sectors/${sector.id}/activities`}
-                                aria-label={`Open ${sector.name} activities`}
                                 sx={{
-                                  display: "flex",
-                                  alignItems: "center",
-                                  justifyContent: "space-between",
                                   p: 2,
-                                  minHeight: TILE_MIN_HEIGHT,
-                                  height: "100%",
+                                  minHeight: 96,
+                                  display: "flex",
+                                  justifyContent: "space-between",
+                                  alignItems: "center",
                                   gap: 2,
                                 }}
                               >
-                                <Box sx={{ display: "flex", alignItems: "center", gap: 2, minWidth: 0, flex: 1 }}>
-                                  <Box
-                                    sx={(theme) => ({
-                                      width: 48,
-                                      height: 48,
-                                      borderRadius: "50%",
-                                      display: "grid",
-                                      placeItems: "center",
-                                      color: "common.white",
-                                      background: `linear-gradient(135deg, ${theme.palette.primary.main}, ${theme.palette.secondary.main})`,
-                                      boxShadow: "0 4px 12px rgba(0,0,0,0.12)",
-                                      flexShrink: 0,
-                                    })}
-                                  >
-                                    <Icon fontSize="medium" />
-                                  </Box>
-                                  <Box sx={{ minWidth: 0 }}>
-                                    <Typography
-                                      variant="h6"
-                                      sx={{
-                                        m: 0,
-                                        display: "-webkit-box",
-                                        WebkitLineClamp: 2,
-                                        WebkitBoxOrient: "vertical",
-                                        overflow: "hidden",
-                                      }}
-                                      title={sector.name}
-                                    >
-                                      {sector.name}
-                                    </Typography>
-                                    <Typography variant="body2" color="text.secondary">
-                                      View activities
-                                    </Typography>
-                                  </Box>
-                                </Box>
-                                <ChevronRightIcon sx={{ color: "action.active", flexShrink: 0 }} />
-                              </CardActionArea>
-                            </Card>
-                          </Grid>
-                        );
-                      })
-                    : (
-                      <Grid item xs={12}>
-                        <Typography color="text.secondary">
-                          No sectors available for this objective.
-                        </Typography>
-                      </Grid>
-                    )}
-                </Grid>
-              </Box>
-
-              {/* --- Section B: Adaptation whitelist (Case 2) --- */}
-              <Typography variant="h6" sx={{ mt: 4, mb: 1 }}>
-                Adaptation whitelist
-              </Typography>
-              <Divider sx={{ mb: 2 }} />
-
-              <Box sx={{ maxWidth: 960, mx: "auto" }}>
-                <Grid container spacing={2} justifyContent="center">
-                  {(adaptationWhitelistGroups || []).length > 0 ? (
-                    adaptationWhitelistGroups.map((group) => {
-                      const s = group?.sector || {};
-                      const Icon = iconForSector(s?.name || "");
-                      return (
-                        <Grid item xs={12} sm={6} md={6} key={`wl-${s.id}`}>
-                          <Card
-                            sx={{
-                              height: "100%",
-                              border: "1px solid",
-                              borderColor: "divider",
-                              transition: "transform .2s ease, box-shadow .2s ease",
-                              "&:hover": { transform: "translateY(-4px)", boxShadow: 6 },
-                            }}
-                          >
-                            <CardActionArea
-                              component={RouterLink}
-                              to={`/taxonomies/${id}/objectives/${selectedObjective.id}/whitelist/${s.id}`}
-                              aria-label={`Open whitelist for ${s.name}`}
-                              sx={{
-                                display: "flex",
-                                alignItems: "center",
-                                justifyContent: "space-between",
-                                p: 2,
-                                minHeight: TILE_MIN_HEIGHT,
-                                height: "100%",
-                                gap: 2,
-                              }}
-                            >
-                              <Box sx={{ display: "flex", alignItems: "center", gap: 2, minWidth: 0, flex: 1 }}>
-                                <Box
-                                  sx={(theme) => ({
-                                    width: 48,
-                                    height: 48,
-                                    borderRadius: "50%",
-                                    display: "grid",
-                                    placeItems: "center",
-                                    color: "common.white",
-                                    background: `linear-gradient(135deg, ${theme.palette.primary.main}, ${theme.palette.secondary.main})`,
-                                    boxShadow: "0 4px 12px rgba(0,0,0,0.12)",
-                                    flexShrink: 0,
-                                  })}
-                                >
-                                  <Icon fontSize="medium" />
-                                </Box>
-                                <Box sx={{ minWidth: 0 }}>
-                                  <Typography
-                                    variant="h6"
-                                    sx={{
-                                      m: 0,
-                                      display: "-webkit-box",
-                                      WebkitLineClamp: 2,
-                                      WebkitBoxOrient: "vertical",
-                                      overflow: "hidden",
-                                    }}
-                                    title={s.name}
-                                  >
-                                    {s.name}
+                                <Box>
+                                  <Typography variant="h6" sx={{ mb: 0.5 }}>
+                                    Case 1
                                   </Typography>
                                   <Typography variant="body2" color="text.secondary">
-                                    View whitelist
+                                    Sector-based activities
                                   </Typography>
                                 </Box>
-                              </Box>
+                                <Chip
+                                  size="small"
+                                  label={`${countCase1} sectors`}
+                                  color={selected ? "primary" : "default"}
+                                />
+                              </CardActionArea>
+                            </Card>
+                          );
+                        })()}
+                      </Grid>
+                    )}
 
-                              <ChevronRightIcon sx={{ color: "action.active", flexShrink: 0 }} />
-                            </CardActionArea>
-                          </Card>
+                    {/* Case 2 */}
+                    {countCase2 > 0 && (
+                      <Grid item xs={12} sm={6} md={4}>
+                        {(() => {
+                          const selected = activeCase === "case2";
+                          return (
+                            <Card
+                              elevation={selected ? 6 : 2}
+                              sx={selectableCardSx(selected)}
+                              onClick={() => setActiveCase("case2")}
+                            >
+                              <CardActionArea
+                                sx={{
+                                  p: 2,
+                                  minHeight: 96,
+                                  display: "flex",
+                                  justifyContent: "space-between",
+                                  alignItems: "center",
+                                  gap: 2,
+                                }}
+                              >
+                                <Box>
+                                  <Typography variant="h6" sx={{ mb: 0.5 }}>
+                                    Case 2
+                                  </Typography>
+                                  <Typography variant="body2" color="text.secondary">
+                                    Adaptation whitelist
+                                  </Typography>
+                                </Box>
+                                <Chip
+                                  size="small"
+                                  label={`${countCase2} sectors`}
+                                  color={selected ? "primary" : "default"}
+                                />
+                              </CardActionArea>
+                            </Card>
+                          );
+                        })()}
+                      </Grid>
+                    )}
+
+                    {/* Case 3 */}
+                    {countCase3 > 0 && (
+                      <Grid item xs={12} sm={6} md={4}>
+                        {(() => {
+                          const selected = activeCase === "case3";
+                          return (
+                            <Card
+                              elevation={selected ? 6 : 2}
+                              sx={selectableCardSx(selected)}
+                              onClick={() => setActiveCase("case3")}
+                            >
+                              <CardActionArea
+                                sx={{
+                                  p: 2,
+                                  minHeight: 96,
+                                  display: "flex",
+                                  justifyContent: "space-between",
+                                  alignItems: "center",
+                                  gap: 2,
+                                }}
+                              >
+                                <Box>
+                                  <Typography variant="h6" sx={{ mb: 0.5 }}>
+                                    Case 3
+                                  </Typography>
+                                  <Typography variant="body2" color="text.secondary">
+                                    General criteria
+                                  </Typography>
+                                </Box>
+                                <Chip
+                                  size="small"
+                                  label={`${countCase3} criteria`}
+                                  color={selected ? "primary" : "default"}
+                                />
+                              </CardActionArea>
+                            </Card>
+                          );
+                        })()}
+                      </Grid>
+                    )}
+                  </Grid>
+
+                  {/* Render según activeCase */}
+                  {activeCase === "case1" && (
+                    <>
+                      <Typography variant="h6" sx={{ mt: 4, mb: 2 }}>Sectors</Typography>
+
+                      <Box sx={{ maxWidth: 960, mx: "auto" }}>
+                        <Grid container spacing={2} alignItems="stretch">
+                          {sectorsLoading
+                            ? SectorSkeletons
+                            : (sectors.length > 0
+                              ? sectors.map((sector) => {
+                                  const Icon = iconForSector(sector.name);
+                                  return (
+                                    <Grid item xs={12} sm={6} md={6} key={sector.id} sx={{ display: "flex" }}>
+                                      <Card
+                                        sx={{
+                                          width: "100%",
+                                          height: "100%",
+                                          border: "1px solid",
+                                          borderColor: "divider",
+                                          transition: "transform .2s ease, box-shadow .2s ease",
+                                          "&:hover": { transform: "translateY(-4px)", boxShadow: 6 },
+                                        }}
+                                      >
+                                        <CardActionArea
+                                          component={RouterLink}
+                                          to={`/taxonomies/${id}/objectives/${selectedObjective.id}/sectors/${sector.id}/activities`}
+                                          aria-label={`Open ${sector.name} activities`}
+                                          sx={{
+                                            display: "flex",
+                                            alignItems: "center",
+                                            justifyContent: "space-between",
+                                            p: 2,
+                                            minHeight: TILE_MIN_HEIGHT,
+                                            height: "100%",
+                                            gap: 2,
+                                          }}
+                                        >
+                                          <Box sx={{ display: "flex", alignItems: "center", gap: 2, minWidth: 0, flex: 1 }}>
+                                            <Box sx={(theme) => ({
+                                              width: 48, height: 48, borderRadius: "50%",
+                                              display: "grid", placeItems: "center",
+                                              color: "common.white",
+                                              background: `linear-gradient(135deg, ${theme.palette.primary.main}, ${theme.palette.secondary.main})`,
+                                              boxShadow: "0 4px 12px rgba(0,0,0,0.12)",
+                                              flexShrink: 0,
+                                            })}>
+                                              <Icon fontSize="medium" />
+                                            </Box>
+                                            <Box sx={{ minWidth: 0 }}>
+                                              <Typography
+                                                variant="h6"
+                                                sx={{
+                                                  m: 0,
+                                                  display: "-webkit-box",
+                                                  WebkitLineClamp: 2,
+                                                  WebkitBoxOrient: "vertical",
+                                                  overflow: "hidden",
+                                                }}
+                                                title={sector.name}
+                                              >
+                                                {sector.name}
+                                              </Typography>
+                                              <Typography variant="body2" color="text.secondary">
+                                                View activities
+                                              </Typography>
+                                            </Box>
+                                          </Box>
+                                          <ChevronRightIcon sx={{ color: "action.active", flexShrink: 0 }} />
+                                        </CardActionArea>
+                                      </Card>
+                                    </Grid>
+                                  );
+                                })
+                              : (
+                                <Grid item xs={12}>
+                                  <Typography color="text.secondary">No sectors available for this objective.</Typography>
+                                </Grid>
+                              )
+                            )
+                          }
                         </Grid>
-                      );
-                    })
-                  ) : detailFetched ? (
-                    <Grid item xs={12}>
-                      <Typography color="text.secondary">
-                        No whitelist records for this objective.
-                      </Typography>
-                    </Grid>
-                  ) : (
-                    SectorSkeletons /* reuso skeleton para coherencia visual */
+                      </Box>
+
+
+                    </>
                   )}
-                </Grid>
-              </Box>
 
-              {/* --- Section C: General criteria (Case 3) --- */}
-              <Typography variant="h6" sx={{ mt: 4, mb: 1 }}>
-                General criteria
-              </Typography>
-              <Divider sx={{ mb: 2 }} />
+                  {activeCase === "case2" && (
+                    <>
+                      <Typography variant="h6" sx={{ mt: 4, mb: 2 }}>Adaptation whitelist</Typography>
+                      <Box sx={{ maxWidth: 960, mx: "auto" }}>
+                        <Grid container spacing={2} alignItems="stretch">
+                          {adaptationWhitelistGroups.map((group) => {
+                            const s = group?.sector || {};
+                            const Icon = iconForSector(s?.name || "");
+                            return (
+                              <Grid item xs={12} sm={6} md={6} key={`wl-${s.id}`} sx={{ display: "flex" }}>
+                                <Card sx={{ width: "100%", height: "100%", border: "1px solid", borderColor: "divider" }}>
+                                  <CardActionArea
+                                    onClick={() => setWhitelistModal({ open: true, sector: s, entries: group.entries || [] })}
+                                    sx={{ p: 2, minHeight: TILE_MIN_HEIGHT, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 2 }}
+                                  >
+                                    <Box sx={{ display: "flex", alignItems: "center", gap: 2, minWidth: 0, flex: 1 }}>
+                                      <Box sx={(theme) => ({
+                                        width: 48, height: 48, borderRadius: "50%", display: "grid", placeItems: "center",
+                                        color: "common.white", background: `linear-gradient(135deg, ${theme.palette.primary.main}, ${theme.palette.secondary.main})`,
+                                      })}>
+                                        <Icon fontSize="medium" />
+                                      </Box>
+                                      <Box sx={{ minWidth: 0 }}>
+                                        <Typography variant="h6" sx={{ m: 0, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                                          {s?.name}
+                                        </Typography>
+                                        <Typography variant="body2" color="text.secondary">Open</Typography>
+                                      </Box>
+                                    </Box>
+                                    <ChevronRightIcon sx={{ color: "action.active" }} />
+                                  </CardActionArea>
+                                </Card>
+                              </Grid>
+                            );
+                          })}
+                        </Grid>
+                      </Box>
+                    </>
+                  )}
 
-              <Box sx={{ display: "flex", justifyContent: "center" }}>
-                <Button
-                  component={RouterLink}
-                  to={`/taxonomies/${id}/objectives/${selectedObjective.id}/general-criteria`}
-                  variant="outlined"
-                >
-                  View general criteria
-                </Button>
-              </Box>
+                  {activeCase === "case3" && (
+                    <>
+                      <Typography variant="h6" sx={{ mt: 4, mb: 2 }}>General criteria</Typography>
+                      <Box sx={{ maxWidth: 960, mx: "auto" }}>
+                        <Grid container spacing={2} alignItems="stretch">
+                          {adaptationGeneralCriteria.map((item) => (
+                            <Grid item xs={12} sm={6} md={6} key={item.id} sx={{ display: "flex" }}>
+                              <Card sx={{ width: "100%", height: "100%", border: "1px solid", borderColor: "divider" }}>
+                                <CardActionArea
+                                  onClick={() => setCriteriaModal({ open: true, item })}
+                                  sx={{ p: 2, minHeight: TILE_MIN_HEIGHT, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 2 }}
+                                >
+                                  <Box sx={{ minWidth: 0, pr: 2 }}>
+                                    <Typography variant="h6" sx={{ m: 0, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>
+                                      {item.title}
+                                    </Typography>
+                                    <Typography variant="body2" color="text.secondary">Open</Typography>
+                                  </Box>
+                                  <ChevronRightIcon sx={{ color: "action.active" }} />
+                                </CardActionArea>
+                              </Card>
+                            </Grid>
+                          ))}
+                        </Grid>
+                      </Box>
+                    </>
+                  )}
+
+                  {/* Modales */}
+                  <Dialog
+                    open={whitelistModal.open}
+                    onClose={() => setWhitelistModal({ open: false, sector: null, entries: [] })}
+                    fullWidth
+                    maxWidth="md"
+                  >
+                    <DialogTitle sx={{ pr: 6, position: "relative" }}>
+                      {whitelistModal.sector?.name || "Whitelist"}
+                      <IconButton
+                        aria-label="close"
+                        onClick={() => setWhitelistModal({ open: false, sector: null, entries: [] })}
+                        sx={{ position: "absolute", right: 8, top: 8 }}
+                      >
+                        <CloseIcon />
+                      </IconButton>
+                    </DialogTitle>
+
+                    <DialogContent dividers>
+                      {(whitelistModal.entries || []).map((e, idx) => (
+                        <Box key={idx} sx={{ mb: 2 }}>
+                          <Accordion defaultExpanded>
+                            <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+                              <Typography sx={{ fontWeight: 600 }}>Description</Typography>
+                            </AccordionSummary>
+                            <AccordionDetails>
+                              <Typography variant="body1">{e?.description || "—"}</Typography>
+                            </AccordionDetails>
+                          </Accordion>
+
+                          <Accordion defaultExpanded>
+                            <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+                              <Typography sx={{ fontWeight: 600 }}>Eligible economic activities</Typography>
+                            </AccordionSummary>
+                            <AccordionDetails>
+                              <Typography variant="body1" whiteSpace="pre-line">
+                                {e?.eligible_activities || "—"}
+                              </Typography>
+                            </AccordionDetails>
+                          </Accordion>
+                        </Box>
+                      ))}
+                    </DialogContent>
+
+                    <DialogActions>
+                      <Button onClick={() => setWhitelistModal({ open: false, sector: null, entries: [] })}>
+                        Close
+                      </Button>
+                    </DialogActions>
+                  </Dialog>
+
+                  <Dialog
+                    open={criteriaModal.open}
+                    onClose={() => setCriteriaModal({ open: false, item: null })}
+                    fullWidth
+                    maxWidth="md"
+                  >
+                    <DialogTitle sx={{ pr: 6, position: "relative" }}>
+                      {criteriaModal.item?.title || "General criterion"}
+                      <IconButton
+                        aria-label="close"
+                        onClick={() => setCriteriaModal({ open: false, item: null })}
+                        sx={{ position: "absolute", right: 8, top: 8 }}
+                      >
+                        <CloseIcon />
+                      </IconButton>
+                    </DialogTitle>
+
+                    <DialogContent dividers>
+                      <Accordion defaultExpanded>
+                        <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+                          <Typography sx={{ fontWeight: 600 }}>Criteria</Typography>
+                        </AccordionSummary>
+                        <AccordionDetails>
+                          <Typography variant="body1" whiteSpace="pre-line">
+                            {criteriaModal.item?.criteria || "—"}
+                          </Typography>
+                        </AccordionDetails>
+                      </Accordion>
+
+                      <Accordion defaultExpanded>
+                        <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+                          <Typography sx={{ fontWeight: 600 }}>Sub-criteria</Typography>
+                        </AccordionSummary>
+                        <AccordionDetails>
+                          <Typography variant="body1" whiteSpace="pre-line">
+                            {criteriaModal.item?.subcriteria || "—"}
+                          </Typography>
+                        </AccordionDetails>
+                      </Accordion>
+                    </DialogContent>
+
+                    <DialogActions>
+                      <Button onClick={() => setCriteriaModal({ open: false, item: null })}>
+                        Close
+                      </Button>
+                    </DialogActions>
+                  </Dialog>
+
+                </>
+              ) : (
+                // Si la taxonomía NO es CCSBSO/Panamá/Costa Rica, dejamos tu comportamiento actual de Adaptation:
+                <>
+                  {/* --- Section A: Sectors (Case 1) --- */}
+                  <Typography variant="h6" sx={{ mb: 1 }}>Sectors</Typography>
+                  <Divider sx={{ mb: 2 }} />
+                  {/* <-- aquí mantén tu grid de sectores para Adaptation tal como ya lo tenías --> */}
+                </>
+              )}
             </>
           )}
         </Box>

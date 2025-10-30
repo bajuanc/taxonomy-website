@@ -64,7 +64,7 @@ class Sector(models.Model):
         unique_together = ("taxonomy", "environmental_objective", "name")
 
     def __str__(self):
-        return f"{self.name} ({self.taxonomy.name} - {self.environmental_objective.name})"
+        return f"{self.name} ({self.taxonomy.name} - {self.environmental_objective.display_name})"
 
 class Subsector(models.Model):
     """
@@ -133,7 +133,7 @@ class Activity(models.Model):
         verbose_name_plural = "Activities"
 
     def __str__(self):
-        return f"{self.taxonomy.name} | {self.environmental_objective.name} | {self.sector.name} | {self.name}"
+        return f"{self.taxonomy.name} | {self.environmental_objective.display_name} | {self.sector.name} | {self.name}"
     
 # -------------------------
 # Practices (MEO: Multiple environmental objectives — AFOLU, Turismo, etc.)
@@ -173,7 +173,7 @@ class Practice(models.Model):
         verbose_name_plural = "Practices"
 
     def __str__(self):
-        return f"{self.taxonomy.name} | {self.environmental_objective.name} | {self.sector.name} | {self.practice_level} | {self.practice_name or '-'}"
+        return f"{self.taxonomy.name} | {self.environmental_objective.display_name} | {self.sector.name} | {self.practice_level} | {self.practice_name or '-'}"
 
 
 # -------------------------
@@ -240,7 +240,7 @@ class AdaptationWhitelist(models.Model):
         verbose_name_plural = "Adaptation whitelists (Case 2)"
 
     def __str__(self):
-        return f"{self.taxonomy.name} | {self.environmental_objective.name} | {self.sector.name} | {self.title}"
+        return f"{self.taxonomy.name} | {self.environmental_objective.display_name} | {self.sector.name} | {self.title}"
 
 
 # --- Adaptation: CASO3 (criterios generales sin sector) ---
@@ -252,13 +252,20 @@ class AdaptationGeneralCriterion(models.Model):
     )
 
     title = models.TextField()
-    criteria = models.TextField(blank=True)
-    subcriteria = models.TextField(blank=True)
+    criteria = models.TextField(blank=True)     # puede repetirse
+    subcriteria = models.TextField(blank=True)  # distingue filas con mismo título
 
     class Meta:
-        unique_together = ("taxonomy", "environmental_objective", "title")
+        # ✅ Reemplaza el unique_together anterior por este UniqueConstraint
+        constraints = [
+            models.UniqueConstraint(
+                fields=["taxonomy", "environmental_objective", "title", "subcriteria"],
+                name="uniq_agc_tax_obj_title_subcriteria",
+            ),
+        ]
         verbose_name = "Adaptation general criterion (Case 3)"
         verbose_name_plural = "Adaptation general criteria (Case 3)"
 
     def __str__(self):
-        return f"{self.taxonomy.name} | {self.environmental_objective.name} | {self.title}"
+        obj_name = self.environmental_objective.display_name or self.environmental_objective.generic_name
+        return f"{self.taxonomy.name} | {obj_name} | {self.title}"

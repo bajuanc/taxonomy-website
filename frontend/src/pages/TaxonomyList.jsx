@@ -101,6 +101,7 @@ const TaxonomyList = () => {
                       <Card
                         elevation={3}
                         sx={{
+                          width: "100%",
                           height: "100%",
                           transition: "transform .2s ease, box-shadow .2s ease",
                           "&:hover": { transform: "translateY(-4px)", boxShadow: 6 },
@@ -123,9 +124,12 @@ const TaxonomyList = () => {
                             {taxonomy.name}
                           </Typography>
 
+                          {/*
                           <Typography variant="body2" sx={{ minHeight: 60 }} color="text.secondary">
                             {taxonomy.description || "No description provided."}
                           </Typography>
+                          */}
+
                           <Box sx={{ mt: 2 }}>
                             <Button variant="contained" fullWidth component={Link} to={`/taxonomies/${taxonomy.id}`}>
                               Explore

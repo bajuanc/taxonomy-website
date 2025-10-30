@@ -15,7 +15,7 @@ from .serializers import (
     AdaptationWhitelistSerializer, AdaptationGeneralCriterionSerializer,
 )
 from .constants import OBJECTIVE_MEO
-
+from django.db.models import Exists, OuterRef
 
 # =========================
 #  ViewSets base (CRUD/lectura)
@@ -201,11 +201,22 @@ def sectors_by_taxonomy(request, taxonomy_id):
 # Sectores por taxonomía y objetivo
 @api_view(["GET"])
 def sectors_by_taxonomy_and_objective(request, taxonomy_id, objective_id):
-    sectors = Sector.objects.filter(
+    qs = Sector.objects.filter(
         taxonomy_id=taxonomy_id,
         environmental_objective_id=objective_id
     ).order_by("name")
-    serializer = SectorSerializer(sectors, many=True)
+
+    # Si piden solo Case 1, filtra a sectores con al menos 1 Activity
+    only_case1 = request.GET.get("only_case1")
+    if only_case1 in ("1", "true", "True"):
+        act_qs = Activity.objects.filter(
+            taxonomy_id=taxonomy_id,
+            environmental_objective_id=objective_id,
+            sector_id=OuterRef("pk"),
+        )
+        qs = qs.annotate(has_acts=Exists(act_qs)).filter(has_acts=True)
+
+    serializer = SectorSerializer(qs, many=True)
     return Response(serializer.data)
 
 # Actividades por T/O/S (como ya tenías)
